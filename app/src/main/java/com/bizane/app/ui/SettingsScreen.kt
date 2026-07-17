@@ -108,6 +108,30 @@ fun SettingsScreen(
             }
 
             Spacer(Modifier.height(20.dp))
+            SectionHeader("↕️  ڕیزکردنی ئایتمەکان")
+            Card {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    SortMode.values().forEachIndexed { i, mode ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { vm.setSortMode(mode) }
+                                .padding(vertical = 10.dp)
+                        ) {
+                            Text(mode.title, color = Color.White, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                            if (vm.sortMode.value == mode) {
+                                Text("✓", color = Color(0xFF0A84FF), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            }
+                        }
+                        if (i != SortMode.values().lastIndex) {
+                            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF383838)))
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
             SectionHeader("👨‍👩‍👧‍👦  گروپی هاوبەش")
             val groupTitle = if (AppSettings.groupId.isEmpty()) "بەشداریکردن/دروستکردنی گروپ"
                 else "گروپ: ${AppSettings.groupName}  (کۆد: ${AppSettings.groupCode})"

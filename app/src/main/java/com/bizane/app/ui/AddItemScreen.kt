@@ -112,11 +112,10 @@ fun AddItemScreen(
         val item = editItem
         item != null && groupId != null && item.ownerId != null && item.ownerId != AuthManager.uid
     }
-    val canDelete = remember(editItem) {
+    val canDelete = remember(editItem, vm.deleteUnlockedState.value) {
         val item = editItem
         if (item == null || groupId == null) true
-        else if (AppSettings.deleteUnlocked) true
-        else item.ownerId == null || item.ownerId == AuthManager.uid
+        else vm.canModify(item)
     }
 
     // Load existing image bitmap
@@ -156,10 +155,25 @@ fun AddItemScreen(
     }
 
     fun launchCamera() {
-        val file = File.createTempFile("bizane_", ".jpg", context.cacheDir)
+        // پێویستە فایلەکە لەناو بوخچەی "images/" دروست بکرێت، چونکە file_paths.xml
+        // تەنیا ئەو ڕێڕەوە دەناسێتەوە (کرش دەکات ئەگەر لە ڕیشەی cacheDir دروست بکرێت)
+        val imagesDir = File(context.cacheDir, "images").apply { if (!exists()) mkdirs() }
+        val file = File.createTempFile("bizane_", ".jpg", imagesDir)
         val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         cameraImageUri = uri
         cameraLauncher.launch(uri)
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) launchCamera()
+        else errorMsg = "ڕێگەی کامێرا پێویستە بۆ گرتنی وێنە"
+    }
+
+    fun requestCameraAndLaunch() {
+        val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.CAMERA
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (hasPermission) launchCamera() else cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
     }
 
     Scaffold(
@@ -333,7 +347,7 @@ fun AddItemScreen(
             title = { Text("وێنەی خواردنەکە") },
             text = { Text("سەرچاوەیەک هەڵبژێرە") },
             confirmButton = {
-                TextButton(onClick = { showImageSourceSheet = false; launchCamera() }) { Text("📷 کامێرا") }
+                TextButton(onClick = { showImageSourceSheet = false; requestCameraAndLaunch() }) { Text("📷 کامێرا") }
             },
             dismissButton = {
                 TextButton(onClick = { showImageSourceSheet = false; galleryLauncher.launch("image/*") }) { Text("🖼 گەلەری وێنەکان") }

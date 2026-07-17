@@ -28,11 +28,8 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -87,7 +84,6 @@ fun MainScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var showLockDialog by remember { mutableStateOf(false) }
-    var showSortMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(vm.wasKicked.value) {
         if (vm.wasKicked.value) {
@@ -158,7 +154,7 @@ fun MainScreen(
             )
 
             Spacer(Modifier.height(10.dp))
-            // Search + sort
+            // Search
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = vm.searchQuery.value,
@@ -174,20 +170,6 @@ fun MainScreen(
                         focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent
                     )
                 )
-                Spacer(Modifier.width(8.dp))
-                Box {
-                    IconCircleButton(imageVector = Icons.Filled.SwapVert) { showSortMenu = true }
-                    DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
-                        SortMode.values().forEach { mode ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text((if (mode == vm.sortMode.value) "✓  " else "") + mode.title)
-                                },
-                                onClick = { vm.setSortMode(mode); showSortMenu = false }
-                            )
-                        }
-                    }
-                }
             }
 
             Spacer(Modifier.height(14.dp))
@@ -316,6 +298,8 @@ private fun SwipeableFoodRow(
 
     SwipeToDismissBox(
         state = dismissState,
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = true,
         backgroundContent = {
             Box(
                 modifier = Modifier
