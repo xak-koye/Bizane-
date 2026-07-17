@@ -75,8 +75,7 @@ import java.util.Locale
 @Composable
 fun MainScreen(
     vm: FoodViewModel,
-    onOpenItem: (FoodItem?) -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenItem: (FoodItem?) -> Unit
 ) {
     val items = vm.visibleItems
     val isCard = AppSettings.isCardView
@@ -138,8 +137,6 @@ fun MainScreen(
                     }
                     Spacer(Modifier.width(8.dp))
                 }
-                IconCircleButton(imageVector = Icons.Filled.Settings, onClick = onOpenSettings)
-                Spacer(Modifier.width(8.dp))
                 IconCircleButton(imageVector = if (cardToggle) Icons.Filled.ViewList else Icons.Filled.GridView) {
                     cardToggle = vm.toggleCardView()
                 }

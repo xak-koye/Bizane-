@@ -54,7 +54,6 @@ import com.bizane.app.ui.theme.PageBG
 @Composable
 fun SettingsScreen(
     vm: FoodViewModel,
-    onClose: () -> Unit,
     onOpenGroup: () -> Unit
 ) {
     val context = LocalContext.current
@@ -67,12 +66,10 @@ fun SettingsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("رێکخستنەکان", color = Color.White) },
-                navigationIcon = { TextButton(onClick = onClose) { Text("داخستن", color = Color.White) } },
                 actions = {
                     TextButton(onClick = {
                         AppSettings.notifDays = notifOptions[notifSelected]
                         vm.refreshAfterEdit()
-                        onClose()
                     }) { Text("پاشەکەوت", color = Color.White, fontWeight = FontWeight.Bold) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = PageBG)
@@ -205,7 +202,6 @@ fun SettingsScreen(
                     showClearConfirm = false
                     FoodStorage.items.toList().forEach { FoodStorage.delete(it.id) }
                     vm.refreshAfterEdit()
-                    onClose()
                 }) { Text("بەڵێ، هەموویان بسڕەوە", color = Color(0xFFFF3B30)) }
             },
             dismissButton = { TextButton(onClick = { showClearConfirm = false }) { Text("نەخێر") } }
