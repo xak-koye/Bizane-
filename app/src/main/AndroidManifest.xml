@@ -25,6 +25,25 @@
             </intent-filter>
         </activity>
 
+        <!-- تەنیا بۆ وەرگرتنی redirect ـی چوونەژوورەوە بە Google (بڕوانە GoogleSignInHelper.kt).
+             ئاگاداری: android:scheme لێرە دەبێت پێکەوە یەکسان بێت لەگەڵ FirebaseConfig.googleRedirectScheme
+             — کاتێک client ID ـی ڕاستەقینەت وەرگرت، هەردووکیان نوێ بکەرەوە. -->
+        <activity
+            android:name=".OAuthRedirectActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="com.googleusercontent.apps.YOUR_ANDROID_OAUTH_CLIENT_ID"
+                    android:host="oauth2redirect" />
+            </intent-filter>
+        </activity>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

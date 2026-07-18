@@ -23,7 +23,9 @@ enum class SortMode(val title: String) {
 /** ViewModel ـی هاوبەش لەنێوان هەموو پەڕەکان، وەکو ئەو state ـەی ViewController.swift هەڵیدەگرت */
 class FoodViewModel : ViewModel() {
 
-    var groupItemsRaw = mutableStateOf<List<FoodItem>>(emptyList())
+    var groupItemsRaw = mutableStateOf<List<FoodItem>>(
+        if (AppSettings.groupId.isNotEmpty()) FoodSyncService.localSnapshot(AppSettings.groupId) else emptyList()
+    )
         private set
     var isGrouped = mutableStateOf(AppSettings.groupId.isNotEmpty())
         private set
@@ -73,6 +75,8 @@ class FoodViewModel : ViewModel() {
     fun startPollingIfNeeded() {
         isGrouped.value = AppSettings.groupId.isNotEmpty()
         if (isGrouped.value) {
+            // دەستبەجێ کۆگای ناوخۆیی پیشان بدە (بێ چاوەڕوانی تۆڕ)، پاشان داواکاری نوێکردنەوە بکە
+            groupItemsRaw.value = FoodSyncService.localSnapshot(AppSettings.groupId)
             FoodSyncService.startPolling(
                 AppSettings.groupId,
                 onUpdate = { fetched ->

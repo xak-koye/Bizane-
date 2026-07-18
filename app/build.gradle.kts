@@ -61,6 +61,9 @@ dependencies {
     // Networking (same Firestore REST API used by the iOS app)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
+    // Chrome Custom Tabs — بۆ سیستەمی چوونەژوورەوە بە Google (هەمان شێوازی iOS، بێ پێویستی بە Google Sign-In SDK)
+    implementation("androidx.browser:browser:1.8.0")
+
     // On-device text recognition (mirrors the OCR auto-fill in the iOS app)
     implementation("com.google.mlkit:text-recognition:16.0.0")
 

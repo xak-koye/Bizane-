@@ -195,7 +195,11 @@ fun MainScreen(
                     contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
                     items(items, key = { it.id }) { item ->
-                        FoodCard(item, onClick = { onOpenItem(item) })
+                        FoodCard(
+                            item,
+                            isPending = vm.isGrouped.value && item.firestoreId == null,
+                            onClick = { onOpenItem(item) }
+                        )
                     }
                 }
             } else {
@@ -207,6 +211,7 @@ fun MainScreen(
                         SwipeableFoodRow(
                             item = item,
                             canModify = vm.canModify(item),
+                            isPending = vm.isGrouped.value && item.firestoreId == null,
                             onClick = { onOpenItem(item) },
                             onDeleteConfirmed = {
                                 vm.deleteItem(item)
@@ -247,11 +252,12 @@ fun MainScreen(
 
 private fun statusText(vm: FoodViewModel): String {
     return if (vm.isGrouped.value) {
-        val t = vm.lastSyncTime.value
-        if (t != null) {
+        val pendingCount = com.bizane.app.data.PendingSyncStorage.get(AppSettings.groupId).size
+        val base = vm.lastSyncTime.value?.let {
             val f = SimpleDateFormat("HH:mm", Locale.getDefault())
-            "🔄 دوایین نوێکردنەوە: ${f.format(Date(t))}"
-        } else "🔄 نوێکردنەوە..."
+            "🔄 دوایین نوێکردنەوە: ${f.format(Date(it))}"
+        } ?: "🔄 نوێکردنەوە..."
+        if (pendingCount > 0) "$base  ·  ⏳ $pendingCount چاوەڕوانی ناردنن" else base
     } else "📱 کۆگای کەسی"
 }
 
@@ -260,6 +266,7 @@ private fun statusText(vm: FoodViewModel): String {
 private fun SwipeableFoodRow(
     item: FoodItem,
     canModify: Boolean,
+    isPending: Boolean = false,
     onClick: () -> Unit,
     onDeleteConfirmed: () -> Unit
 ) {
@@ -280,7 +287,7 @@ private fun SwipeableFoodRow(
     }
 
     if (!canModify) {
-        FoodListRow(item, onClick = onClick)
+        FoodListRow(item, isPending = isPending, onClick = onClick)
         return
     }
 
@@ -309,7 +316,7 @@ private fun SwipeableFoodRow(
             }
         }
     ) {
-        FoodListRow(item, onClick = onClick)
+        FoodListRow(item, isPending = isPending, onClick = onClick)
     }
 }
 

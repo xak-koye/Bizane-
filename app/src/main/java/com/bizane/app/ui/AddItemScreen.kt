@@ -106,6 +106,7 @@ fun AddItemScreen(
     var showBuyPicker by remember { mutableStateOf(false) }
     var showExpPicker by remember { mutableStateOf(false) }
     var showImageSourceSheet by remember { mutableStateOf(false) }
+    var isSaving by remember { mutableStateOf(false) }
 
     // خۆکار: بۆنی ئایتمە هەڵگیراوەکە لادراو e، تەنیا کاتێک هی ئەندامێکی ترە لە گروپدا
     val isReadOnly = remember(editItem) {
@@ -187,6 +188,7 @@ fun AddItemScreen(
                 actions = {
                     if (!isReadOnly) {
                         TextButton(onClick = {
+                            if (isSaving) return@TextButton
                             if (groupId != null && !AppSettings.canEditGroup) {
                                 errorMsg = "ئەدمینی گروپ ڕێگەی زیادکردن/دەستکاریکردنی نەداویت (تەنیا بینین)."
                                 return@TextButton
@@ -197,14 +199,21 @@ fun AddItemScreen(
                             if (expiryDate <= purchaseDate) {
                                 errorMsg = "بەرواری بەسەرچون دەبێت لەدوای بەرواری کڕین بێت"; return@TextButton
                             }
+                            isSaving = true
                             if (editItem != null) {
                                 val updated = editItem.copy(
                                     name = name.trim(), category = category,
                                     purchaseDate = purchaseDate, expiryDate = expiryDate,
                                     notes = notes, imageBase64 = pickedBase64 ?: editItem.imageBase64
                                 )
-                                if (groupId != null) FoodSyncService.save(groupId, updated) { vm.refreshAfterEdit() }
-                                else { FoodStorage.update(updated); vm.refreshAfterEdit() }
+                                if (groupId != null) {
+                                    // فەوران لە ڕیزی چاوەڕوانیدا دابنێ تا لەخۆوە ون نەبێت، پاشان بە پاشبنەما هەوڵی ناردن بدە
+                                    com.bizane.app.data.PendingSyncStorage.enqueue(groupId, updated)
+                                    vm.refreshAfterEdit()
+                                    FoodSyncService.save(groupId, updated) { vm.refreshAfterEdit() }
+                                } else {
+                                    FoodStorage.update(updated); vm.refreshAfterEdit()
+                                }
                             } else {
                                 var newItem = FoodItem(
                                     name = name.trim(), category = category,
@@ -216,6 +225,10 @@ fun AddItemScreen(
                                         ownerId = AuthManager.uid,
                                         ownerName = AppSettings.userName.ifEmpty { "ئەندام" }
                                     )
+                                    // فەوران لە ڕیزی چاوەڕوانیدا دابنێ تا دەستبەجێ لە لیستەکەدا دەربکەوێت،
+                                    // تەنانەت لە کاتی نەبوونی ئینتەرنێتیشدا؛ پاشان بە پاشبنەما دەنێردرێت
+                                    com.bizane.app.data.PendingSyncStorage.enqueue(groupId, newItem)
+                                    vm.refreshAfterEdit()
                                     FoodSyncService.save(groupId, newItem) { vm.refreshAfterEdit() }
                                 } else {
                                     FoodStorage.add(newItem); vm.refreshAfterEdit()

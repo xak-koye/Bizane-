@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import com.bizane.app.data.FoodStorage
+import com.bizane.app.data.GoogleSignInHelper
 import com.bizane.app.ui.BizaneNavHost
 import com.bizane.app.ui.theme.BizaneTheme
 import com.bizane.app.ui.theme.PageBG
@@ -31,5 +32,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // ئەگەر بەکارهێنەر لە Custom Tab ـی Google پاشگەز بووەوە بەبێ تەواوکردن، چاوەڕوانییەکە هەڵبوەشێنەوە
+        GoogleSignInHelper.cancelPending()
     }
 }

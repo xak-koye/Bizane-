@@ -48,56 +48,96 @@ object FoodSyncService {
         Prefs.sp.edit().putString(cacheKey(groupId), arr.toString()).apply()
     }
 
+    /** سنافشوتی خێرا و هەمیشەیی (بێ چاوەڕوانی تۆڕ): کۆگای دواین-بینراو + ئایتمە چاوەڕوانەکان.
+     * بۆ پیشاندانی ئایتمەکان دەستبەجێ لە کردنەوەی ئەپەکەدا، پێش وەرگرتنی وەڵامی سێرڤەر،
+     * تاوەکو بەکارهێنەر هەرگیز لیستی بەتاڵ نەبینێت کاتێک بابەتی ڕاستەقینەی هەیە. */
+    fun localSnapshot(groupId: String): List<FoodItem> = mergeWithPending(groupId, cachedItems(groupId))
+
+    // MARK: - Pending items (ئایتمی چاوەڕوانی ناردن، بۆ نەون‌بوونیان لە کاتی نەبوونی خەت)
+    private fun mergeWithPending(groupId: String, items: List<FoodItem>): List<FoodItem> {
+        val pending = PendingSyncStorage.get(groupId)
+        if (pending.isEmpty()) return items
+        val existingIds = items.map { it.id }.toSet()
+        return items + pending.filter { it.id !in existingIds }
+    }
+
     fun fetchItems(groupId: String, completion: (List<FoodItem>) -> Unit) {
         AuthManager.validToken { token ->
             if (token == null) {
-                mainThread { completion(cachedItems(groupId)) }; return@validToken
+                mainThread { completion(mergeWithPending(groupId, cachedItems(groupId))) }; return@validToken
             }
-            val req = Request.Builder().url(itemsUrl(groupId))
-                .addHeader("Authorization", "Bearer $token").build()
-            OkHttpClientProvider.shortTimeout().newCall(req).enqueue(object : Callback {
-                override fun onFailure(call: Call, e: IOException) {
-                    mainThread { completion(cachedItems(groupId)) }
+            fetchItemsPage(groupId, token, null, emptyList()) { allItems ->
+                if (allItems == null) {
+                    mainThread { completion(mergeWithPending(groupId, cachedItems(groupId))) }
+                } else {
+                    cacheItems(groupId, allItems)
+                    mainThread { completion(mergeWithPending(groupId, allItems)) }
                 }
-                override fun onResponse(call: Call, response: Response) {
-                    val json = try {
-                        response.body?.string()?.let { JSONObject(it) }
-                    } catch (e: Exception) { null }
-                    if (json == null) { mainThread { completion(cachedItems(groupId)) }; return }
-                    val docs = json.optJSONArray("documents") ?: JSONArray()
-                    val items = mutableListOf<FoodItem>()
-                    for (i in 0 until docs.length()) {
-                        val doc = docs.getJSONObject(i)
-                        val dict = FSValue.dict(doc)
-                        if (!dict.has("name") || !dict.has("expiryDate")) continue
-                        val name = dict.optString("name", "")
-                        val expiry = (dict.opt("expiryDate") as? Long) ?: continue
-                        val catRaw = dict.optString("category", FoodCategory.FOOD.raw)
-                        val imgB64 = if (dict.has("imageData")) dict.optString("imageData") else null
-                        val item = FoodItem(
-                            name = name,
-                            category = FoodCategory.fromRaw(catRaw),
-                            purchaseDate = (dict.opt("purchaseDate") as? Long) ?: System.currentTimeMillis(),
-                            expiryDate = expiry,
-                            imageBase64 = imgB64,
-                            notes = dict.optString("notes", ""),
-                            ownerId = if (dict.has("ownerId")) dict.optString("ownerId") else null,
-                            ownerName = if (dict.has("ownerName")) dict.optString("ownerName") else null
-                        )
-                        val docName = doc.optString("name")
-                        if (docName.isNotEmpty()) item.firestoreId = FSValue.docId(docName)
-                        items.add(item)
-                    }
-                    cacheItems(groupId, items)
-                    mainThread { completion(items) }
-                }
-            })
+            }
         }
+    }
+
+    /** Firestore ـی listDocuments لاپەڕەیی دەکات (pagination)؛ ئەگەر nextPageToken بگەڕێنرێتەوە
+     * دەبێت بەردەوام بین لە داواکردنی لاپەڕەکانی تر، نەوەک تەنیا لاپەڕەی یەکەم وەربگیرێت و ئایتمەکانی تر ون بن. */
+    private fun fetchItemsPage(
+        groupId: String, token: String, pageToken: String?, accumulated: List<FoodItem>,
+        completion: (List<FoodItem>?) -> Unit
+    ) {
+        var url = itemsUrl(groupId) + "?pageSize=300"
+        if (pageToken != null) {
+            url += "&pageToken=" + java.net.URLEncoder.encode(pageToken, "UTF-8")
+        }
+        val req = Request.Builder().url(url)
+            .addHeader("Authorization", "Bearer $token").build()
+        OkHttpClientProvider.shortTimeout().newCall(req).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) { completion(null) }
+            override fun onResponse(call: Call, response: Response) {
+                val json = try {
+                    response.body?.string()?.let { JSONObject(it) }
+                } catch (e: Exception) { null }
+                if (json == null) { completion(null); return }
+                val docs = json.optJSONArray("documents") ?: JSONArray()
+                val pageItems = mutableListOf<FoodItem>()
+                for (i in 0 until docs.length()) {
+                    val doc = docs.getJSONObject(i)
+                    val dict = FSValue.dict(doc)
+                    if (!dict.has("name") || !dict.has("expiryDate")) continue
+                    val name = dict.optString("name", "")
+                    val expiry = (dict.opt("expiryDate") as? Long) ?: continue
+                    val catRaw = dict.optString("category", FoodCategory.FOOD.raw)
+                    val imgB64 = if (dict.has("imageData")) dict.optString("imageData") else null
+                    val item = FoodItem(
+                        name = name,
+                        category = FoodCategory.fromRaw(catRaw),
+                        purchaseDate = (dict.opt("purchaseDate") as? Long) ?: System.currentTimeMillis(),
+                        expiryDate = expiry,
+                        imageBase64 = imgB64,
+                        notes = dict.optString("notes", ""),
+                        ownerId = if (dict.has("ownerId")) dict.optString("ownerId") else null,
+                        ownerName = if (dict.has("ownerName")) dict.optString("ownerName") else null
+                    )
+                    val docName = doc.optString("name")
+                    if (docName.isNotEmpty()) item.firestoreId = FSValue.docId(docName)
+                    pageItems.add(item)
+                }
+                val combined = accumulated + pageItems
+                val nextToken = json.optString("nextPageToken", "")
+                if (nextToken.isNotEmpty()) {
+                    fetchItemsPage(groupId, token, nextToken, combined, completion)
+                } else {
+                    completion(combined)
+                }
+            }
+        })
     }
 
     fun save(groupId: String, item: FoodItem, completion: (Boolean) -> Unit = {}) {
         AuthManager.validToken { token ->
-            if (token == null) { mainThread { completion(false) }; return@validToken }
+            if (token == null) {
+                PendingSyncStorage.enqueue(groupId, item)
+                mainThread { completion(false) }
+                return@validToken
+            }
             val fields = JSONObject().apply {
                 put("name", FSValue.str(item.name))
                 put("category", FSValue.str(item.category.raw))
@@ -114,10 +154,34 @@ object FoodSyncService {
                 .url(if (fid != null) itemsUrl(groupId, fid) else itemsUrl(groupId))
                 .addHeader("Authorization", "Bearer $token")
             val req = if (fid != null) builder.method("PATCH", body).build() else builder.post(body).build()
-            client.newCall(req).enqueue(object : Callback {
-                override fun onFailure(call: Call, e: IOException) { mainThread { completion(false) } }
-                override fun onResponse(call: Call, response: Response) { mainThread { completion(response.isSuccessful) } }
+            OkHttpClientProvider.shortTimeout(8).newCall(req).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    PendingSyncStorage.enqueue(groupId, item)
+                    mainThread { completion(false) }
+                }
+                override fun onResponse(call: Call, response: Response) {
+                    if (response.isSuccessful) {
+                        PendingSyncStorage.remove(groupId, item.id)
+                        mainThread { completion(true) }
+                    } else {
+                        PendingSyncStorage.enqueue(groupId, item)
+                        mainThread { completion(false) }
+                    }
+                }
             })
+        }
+    }
+
+    /** هەوڵدانەوەی خۆکاری ناردنی هەموو ئایتمە چاوەڕوانەکان (کاتێک خەت باش بێت) */
+    fun syncPendingItems(groupId: String, onDone: () -> Unit = {}) {
+        val pending = PendingSyncStorage.get(groupId)
+        if (pending.isEmpty()) { onDone(); return }
+        var remaining = pending.size
+        pending.forEach { item ->
+            save(groupId, item) {
+                remaining--
+                if (remaining <= 0) onDone()
+            }
         }
     }
 
@@ -223,6 +287,7 @@ object FoodSyncService {
         stopPolling()
         fun tick() {
             fetchItems(groupId, onUpdate)
+            syncPendingItems(groupId) { fetchItems(groupId, onUpdate) }
             refreshPermission(groupId)
             refreshDeletePermission(groupId)
             refreshDeleteLock(groupId)

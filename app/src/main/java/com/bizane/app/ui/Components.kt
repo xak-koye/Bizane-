@@ -68,7 +68,7 @@ fun CategoryChip(cat: FoodCategory, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-fun FoodListRow(item: FoodItem, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun FoodListRow(item: FoodItem, isPending: Boolean = false, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val bmp = rememberItemBitmap(item.imageBase64)
     Row(
         modifier = modifier
@@ -99,7 +99,13 @@ fun FoodListRow(item: FoodItem, modifier: Modifier = Modifier, onClick: () -> Un
         }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(item.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, maxLines = 2)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(item.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, maxLines = 2, modifier = Modifier.weight(1f, fill = false))
+                if (isPending) {
+                    Spacer(Modifier.width(6.dp))
+                    PendingSyncBadge()
+                }
+            }
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(item.statusText, color = Color(item.statusColor), fontSize = 13.sp)
@@ -128,8 +134,21 @@ fun FoodListRow(item: FoodItem, modifier: Modifier = Modifier, onClick: () -> Un
     }
 }
 
+/** نیشانەیەکی بچووک بۆ ئایتمێک کە هێشتا نەگەیشتووەتە گروپ (چاوەڕوانی ناردنە) */
 @Composable
-fun FoodCard(item: FoodItem, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun PendingSyncBadge() {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFF3A2E00))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) {
+        Text("⏳ چاوەڕوانە", color = Color(0xFFFFCC00), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+fun FoodCard(item: FoodItem, isPending: Boolean = false, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val bmp = rememberItemBitmap(item.imageBase64)
     Box(
         modifier = modifier
@@ -151,6 +170,11 @@ fun FoodCard(item: FoodItem, modifier: Modifier = Modifier, onClick: () -> Unit)
                 fontSize = 52.sp,
                 modifier = Modifier.align(Alignment.Center)
             )
+        }
+        if (isPending) {
+            Box(modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
+                PendingSyncBadge()
+            }
         }
         // dark gradient overlay at bottom for text legibility
         Box(

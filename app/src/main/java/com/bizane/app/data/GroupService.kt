@@ -26,6 +26,60 @@ object GroupService {
         return (1..6).map { chars.random() }.joinToString("")
     }
 
+    /** دواتر لینک‌کردنەوەی هەژماری Google (یان کردنەوەی ئەپ لەسەر مۆبایلێکی نوێ)، ئەم فەنکشنە
+     * دەگەڕێت بۆ هەر گروپێک کە ئەم uid ـە پێشتر ئەندامی بووە، تاکو خۆکار بگەڕێتەوە ناوی — بێ پێویستی
+     * بە دووبارە نووسینی کۆدی گروپ، چونکە بوونی لە گروپەکە خۆی لە سێرڤەردا هەر ماوە.
+     * completion: (groupId, groupName, groupCode, ownerId, error) */
+    fun findMyGroup(completion: (String?, String?, String?, String?, String?) -> Unit) {
+        AuthManager.validToken { token ->
+            val uid = AuthManager.uid
+            if (token == null || uid == null) {
+                mainThread { completion(null, null, null, null, "پێویستە لۆگین بیت") }; return@validToken
+            }
+            val queryBody = JSONObject().apply {
+                put("structuredQuery", JSONObject().apply {
+                    put("from", JSONArray().put(JSONObject().put("collectionId", "groups")))
+                    put("where", JSONObject().put("fieldFilter", JSONObject().apply {
+                        put("field", JSONObject().put("fieldPath", "memberIds"))
+                        put("op", "ARRAY_CONTAINS")
+                        put("value", JSONObject().put("stringValue", uid))
+                    }))
+                    put("limit", 1)
+                })
+            }.toString().toRequestBody(JSON)
+            val req = Request.Builder()
+                .url("${FirebaseConfig.firestoreBase}:runQuery")
+                .addHeader("Authorization", "Bearer $token")
+                .post(queryBody).build()
+            client.newCall(req).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    mainThread { completion(null, null, null, null, null) } // هیچ گروپێک نەدۆزرایەوە، ئەمە هەڵە نییە
+                }
+                override fun onResponse(call: Call, response: Response) {
+                    val bodyStr = response.body?.string()
+                    var first: JSONObject? = null
+                    try {
+                        val arr = JSONArray(bodyStr ?: "[]")
+                        for (i in 0 until arr.length()) {
+                            val doc = arr.optJSONObject(i)?.optJSONObject("document")
+                            if (doc != null) { first = doc; break }
+                        }
+                    } catch (e: Exception) { /* ignore */ }
+                    val docName = first?.optString("name")
+                    if (first == null || docName.isNullOrEmpty()) {
+                        mainThread { completion(null, null, null, null, null) }; return
+                    }
+                    val groupId = FSValue.docId(docName)
+                    val dict = FSValue.dict(first)
+                    val groupName = dict.optString("name", "گروپ")
+                    val groupCode = dict.optString("code", "")
+                    val ownerId = dict.optString("ownerId", "")
+                    mainThread { completion(groupId, groupName, groupCode, ownerId, null) }
+                }
+            })
+        }
+    }
+
     private fun parseJson(response: Response): JSONObject? = try {
         response.body?.string()?.let { JSONObject(it) }
     } catch (e: Exception) { null }

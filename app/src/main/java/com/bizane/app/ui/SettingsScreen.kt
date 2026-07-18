@@ -60,6 +60,47 @@ fun SettingsScreen(
     val notifOptions = listOf(1, 3, 7)
     var notifSelected by remember { mutableStateOf(notifOptions.indexOf(AppSettings.notifDays).let { if (it < 0) 1 else it }) }
     var showClearConfirm by remember { mutableStateOf(false) }
+    var googleRefreshTick by remember { mutableStateOf(0) } // بۆ recomposition دوای گۆڕینی linkedEmail
+    var googleBusy by remember { mutableStateOf(false) }
+    var googleAlert by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var showGoogleSignOutConfirm by remember { mutableStateOf(false) }
+
+    fun startGoogleLink() {
+        googleBusy = true
+        com.bizane.app.data.GoogleSignInHelper.start(context) { idToken, error ->
+            if (idToken == null) {
+                googleBusy = false
+                if (error != null) googleAlert = "سەرکەوتوو نەبوو" to error
+                return@start
+            }
+            com.bizane.app.data.AuthManager.linkOrSignIn("google.com", idToken) { ok, err ->
+                if (ok) {
+                    // ئەگەر لەم مۆبایلە لە هیچ گروپێک نیت، بگەڕێ بۆ ئەو گروپەی پێشتر ئەندامی بوویت
+                    if (AppSettings.groupId.isEmpty()) {
+                        com.bizane.app.data.GroupService.findMyGroup { groupId, name, code, ownerId, _ ->
+                            googleBusy = false
+                            googleRefreshTick++
+                            if (groupId != null && name != null && ownerId != null) {
+                                AppSettings.setGroup(groupId, name, code ?: "", ownerId)
+                                vm.startPollingIfNeeded()
+                                googleAlert = "پارێزراوە بە Google ✅" to
+                                    "ئێستا داتاکەت پارێزراوە، هەروەها خۆکار گەڕایتەوە ناو گروپەکەت: $name"
+                            } else {
+                                googleAlert = "پارێزراوە بە Google ✅" to "ئێستا داتاکەت پارێزراوە."
+                            }
+                        }
+                    } else {
+                        googleBusy = false
+                        googleRefreshTick++
+                        googleAlert = "پارێزراوە بە Google ✅" to "ئێستا داتاکەت پارێزراوە."
+                    }
+                } else {
+                    googleBusy = false
+                    googleAlert = "هەڵە" to (err ?: "هەوڵدانەوە بکە.")
+                }
+            }
+        }
+    }
 
     Scaffold(
         containerColor = PageBG,
@@ -129,7 +170,31 @@ fun SettingsScreen(
             }
 
             Spacer(Modifier.height(20.dp))
-            SectionHeader("👨‍👩‍👧‍👦  گروپی هاوبەش")
+            SectionHeader("🔒  پاراستنی هەژمار / باکئەپ")
+            run {
+                googleRefreshTick // dependency بۆ recomposition
+                val linkedEmail = com.bizane.app.data.AuthManager.linkedEmail
+                Card {
+                    Text(
+                        if (linkedEmail.isEmpty())
+                            "ئەگەر مۆبایل بگۆڕیت یان ئەپ دووبارە دابمەزرێنیتەوە، گروپ و داتاکانت لەناودەچن مەگەر پارێزگاریان بکەیت بە هەژمارێکی Google."
+                        else "پارێزراوە بە Google ✅  ($linkedEmail)",
+                        color = if (linkedEmail.isEmpty()) Color.Gray else Color(0xFF33D976),
+                        fontSize = 13.sp
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    ActionButton(
+                        if (googleBusy) "چاوەڕوانبە..."
+                        else if (linkedEmail.isEmpty()) "پارێزگاری بکە بە Google" else "چوونە دەرەوە لە Google",
+                        color = if (linkedEmail.isEmpty()) Color(0xFF0A84FF) else Color(0xFFFF3B30)
+                    ) {
+                        if (googleBusy) return@ActionButton
+                        if (linkedEmail.isEmpty()) startGoogleLink() else showGoogleSignOutConfirm = true
+                    }
+                }
+            }
+
+
             val groupTitle = if (AppSettings.groupId.isEmpty()) "بەشداریکردن/دروستکردنی گروپ"
                 else "گروپ: ${AppSettings.groupName}  (کۆد: ${AppSettings.groupCode})"
             ActionButton(groupTitle, color = if (AppSettings.groupId.isEmpty()) Color(0xFF0A84FF) else Color.White) { onOpenGroup() }
@@ -205,6 +270,36 @@ fun SettingsScreen(
                 }) { Text("بەڵێ، هەموویان بسڕەوە", color = Color(0xFFFF3B30)) }
             },
             dismissButton = { TextButton(onClick = { showClearConfirm = false }) { Text("نەخێر") } }
+        )
+    }
+
+    if (showGoogleSignOutConfirm) {
+        AlertDialog(
+            onDismissRequest = { showGoogleSignOutConfirm = false },
+            title = { Text("چوونە دەرەوە لە Google؟") },
+            text = {
+                Text(
+                    "ئەم مۆبایلە دەبێتەوە بێ backup (ئەگەر مۆبایل بگۆڕیت، داتاکانت پارێزراو نامێننەوە)، " +
+                        "بەڵام هەموو گروپ و مەوادەکانت لەم مۆبایلە دەمێننەوە وەک خۆیان."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showGoogleSignOutConfirm = false
+                    com.bizane.app.data.AuthManager.signOutGoogle()
+                    googleRefreshTick++
+                }) { Text("چوونە دەرەوە", color = Color(0xFFFF3B30)) }
+            },
+            dismissButton = { TextButton(onClick = { showGoogleSignOutConfirm = false }) { Text("پاشگەزبوونەوە") } }
+        )
+    }
+
+    googleAlert?.let { (title, message) ->
+        AlertDialog(
+            onDismissRequest = { googleAlert = null },
+            title = { Text(title) },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { googleAlert = null }) { Text("باشە") } }
         )
     }
 }

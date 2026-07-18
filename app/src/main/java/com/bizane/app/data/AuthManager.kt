@@ -106,4 +106,94 @@ object AuthManager {
     } catch (e: Exception) {
         null
     }
+
+    // MARK: - Google linking (Identity Toolkit REST, بێ پێویستی بە هیچ SDK ـێک)
+
+    /** دەربڕی provider ی بەستراوە بەم هەژمارە ("google.com" / "") */
+    val linkedProvider: String get() = sp.getString("fb_linked_provider", "") ?: ""
+    val linkedEmail: String get() = sp.getString("fb_linked_email", "") ?: ""
+
+    /** جیاکردنەوەی هەژماری Google لەم مۆبایلە - دووبارە دەبێتەوە بە anonymous.
+     * تەنها یادکردنەوەی بەستنەوەی Google لادەبات - هەمان uid و بوونی لە گروپەکان دەمێنێتەوە.
+     * (بۆ سڕینەوەی تەواوی هەژمار و دەستپێکردنەوە لە سەرەتا، سڕینەوەی ئەپ لە مۆبایل بکە) */
+    fun signOutGoogle() {
+        sp.edit().remove("fb_linked_provider").remove("fb_linked_email").apply()
+    }
+
+    /** دەبەستێتەوە credential ـی Google بە هەژمارە anonymous ـەکەی ئێستاوە، یان ئەگەر credential ـەکە
+     * پێشتر بەسترابوو بە هەژمارێکی تر، بەخۆکار دەگۆڕدرێت بۆ هەمان uid ـی کۆن
+     * (ئەمە پارێزگاریکردنی داتایە کاتی گۆڕینی مۆبایل/دامەزراندنەوەی ئەپ). */
+    fun linkOrSignIn(providerId: String, idToken: String, completion: (Boolean, String?) -> Unit) {
+        validToken { currentToken ->
+            val postBody = "id_token=$idToken&providerId=$providerId"
+            callSignInWithIdp(postBody, currentToken) { ok, email, err ->
+                when {
+                    ok -> {
+                        sp.edit().putString("fb_linked_provider", providerId)
+                            .putString("fb_linked_email", email ?: "").apply()
+                        completion(true, null)
+                    }
+                    err == "CREDENTIAL_ALREADY_IN_USE" || err == "FEDERATED_USER_ID_ALREADY_LINKED" || err == "EMAIL_EXISTS" -> {
+                        // ئەم هەژمارە پێشتر بەسترابووە بە uid ـێکی تر - بچۆرەوە بۆ ئەو uid ـە
+                        // (ئەمە کاتێکە کە یوزەر لە مۆبایلێکی نوێوە هەوڵ دەدات)
+                        callSignInWithIdp(postBody, null) { ok2, email2, err2 ->
+                            if (ok2) {
+                                sp.edit().putString("fb_linked_provider", providerId)
+                                    .putString("fb_linked_email", email2 ?: "").apply()
+                            }
+                            completion(ok2, if (ok2) null else err2)
+                        }
+                    }
+                    else -> completion(false, err)
+                }
+            }
+        }
+    }
+
+    private fun callSignInWithIdp(
+        postBody: String, existingIdToken: String?,
+        completion: (Boolean, String?, String?) -> Unit
+    ) {
+        val url = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${FirebaseConfig.apiKey}"
+        val bodyJson = JSONObject().apply {
+            put("postBody", postBody)
+            put("requestUri", "https://${FirebaseConfig.projectId}.firebaseapp.com")
+            put("returnIdpCredential", true)
+            put("returnSecureToken", true)
+            if (existingIdToken != null) put("idToken", existingIdToken)
+        }
+        val body = bodyJson.toString().toRequestBody("application/json".toMediaType())
+        val req = Request.Builder().url(url).post(body).build()
+        client.newCall(req).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                mainThread { completion(false, null, "network") }
+            }
+            override fun onResponse(call: Call, response: Response) {
+                val json = parseJson(response)
+                val errObj = json?.optJSONObject("error")
+                if (errObj != null) {
+                    mainThread { completion(false, null, errObj.optString("message")) }; return
+                }
+                val errorMessage = json?.optString("errorMessage")
+                if (!errorMessage.isNullOrEmpty()) {
+                    mainThread { completion(false, null, errorMessage) }; return
+                }
+                if (json?.optBoolean("needConfirmation", false) == true) {
+                    mainThread { completion(false, null, "CREDENTIAL_ALREADY_IN_USE") }; return
+                }
+                val token = json?.optString("idToken")
+                val newUid = json?.optString("localId")
+                val refresh = json?.optString("refreshToken")
+                val exp = json?.optString("expiresIn")?.toDoubleOrNull()
+                if (token.isNullOrEmpty() || newUid.isNullOrEmpty() || refresh.isNullOrEmpty() || exp == null) {
+                    mainThread { completion(false, null, "parse") }; return
+                }
+                uid = newUid; idToken = token; refreshToken = refresh
+                expiresAt = System.currentTimeMillis() + ((exp - 60) * 1000).toLong()
+                persist()
+                val email = json.optString("email").takeIf { it.isNotEmpty() }
+                mainThread { completion(true, email, null) }
+            }
+        })
+    }
 }
