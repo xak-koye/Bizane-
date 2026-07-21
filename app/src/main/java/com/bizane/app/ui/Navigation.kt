@@ -1,10 +1,14 @@
 package com.bizane.app.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -18,7 +22,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -55,33 +61,46 @@ private fun RootTabsScreen(
     Scaffold(
         containerColor = PageBG,
         bottomBar = {
-            NavigationBar(containerColor = Color(0xFF1C1C1E)) {
-                NavigationBarItem(
-                    selected = selectedTab == RootTab.HOME,
-                    onClick = { selectedTab = RootTab.HOME },
-                    icon = { Icon(Icons.Filled.List, contentDescription = null) },
-                    label = { Text("خواردنەکان") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.White,
-                        selectedTextColor = Color.White,
-                        indicatorColor = Color(0xFF0A84FF),
-                        unselectedIconColor = Color.Gray,
-                        unselectedTextColor = Color.Gray
+            // تابی خوارەوە بە شێوەی "شناوگە"ی گڵۆپاوی وەک وەشانی ئایفۆن — کەمێک بۆشایی
+            // لە هەردوو لاو خوارەوە، گۆشە خڕ و شێوەیەکی سەربەخۆ نەک تەواوی پانی شاشە
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(Color(0xFF1C1C1E))
+            ) {
+                NavigationBar(
+                    containerColor = Color.Transparent,
+                    modifier = Modifier.height(64.dp)
+                ) {
+                    NavigationBarItem(
+                        selected = selectedTab == RootTab.HOME,
+                        onClick = { selectedTab = RootTab.HOME },
+                        icon = { Icon(Icons.Filled.ShoppingCart, contentDescription = null) },
+                        label = { Text("سەرەکی") },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Color.White,
+                            selectedTextColor = Color.White,
+                            indicatorColor = Color(0xFF0A84FF),
+                            unselectedIconColor = Color.Gray,
+                            unselectedTextColor = Color.Gray
+                        )
                     )
-                )
-                NavigationBarItem(
-                    selected = selectedTab == RootTab.SETTINGS,
-                    onClick = { selectedTab = RootTab.SETTINGS },
-                    icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
-                    label = { Text("ڕێکخستنەکان") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.White,
-                        selectedTextColor = Color.White,
-                        indicatorColor = Color(0xFF0A84FF),
-                        unselectedIconColor = Color.Gray,
-                        unselectedTextColor = Color.Gray
+                    NavigationBarItem(
+                        selected = selectedTab == RootTab.SETTINGS,
+                        onClick = { selectedTab = RootTab.SETTINGS },
+                        icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
+                        label = { Text("ڕێکخستنەکان") },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Color.White,
+                            selectedTextColor = Color.White,
+                            indicatorColor = Color(0xFF0A84FF),
+                            unselectedIconColor = Color.Gray,
+                            unselectedTextColor = Color.Gray
+                        )
                     )
-                )
+                }
             }
         }
     ) { padding ->
