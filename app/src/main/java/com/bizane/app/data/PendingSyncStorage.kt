@@ -21,7 +21,12 @@ object PendingSyncStorage {
     private fun persist(groupId: String, items: List<FoodItem>) {
         val arr = JSONArray()
         items.forEach { arr.put(it.toJson()) }
-        Prefs.sp.edit().putString(key(groupId), arr.toString()).apply()
+        // بە commit() نەک apply(): commit ڕاستەوخۆ و بە هەمان جێگە (synchronous) دەنووسێتە
+        // دیسک و دڵنیایی دەدات نووسینەکە تەواو بووە پێش گەڕانەوە. بەم شێوەیە ئەگەر
+        // بەکارهێنەر یەکسەر دوای زیادکردنی ئایتم ئەپەکە دابخات (یان ئۆپەراتینگ سیستەم
+        // پرۆسەکە بکوژێت)، ئایتمە نوێیەکە لەناو ناچێت چونکە پێش گەڕانەوەی enqueue()
+        // بە تەواوی لە دیسکدا پارێزراوە.
+        Prefs.sp.edit().putString(key(groupId), arr.toString()).commit()
     }
 
     /** ئایتمێک زیاد دەکات یان نوێ دەکاتەوە لە ڕیزی چاوەڕوانی ناردن (بەپێی id) */

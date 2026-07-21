@@ -19,6 +19,11 @@ object FoodSyncService {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pollRunnable: Runnable? = null
 
+    // ئایتمەکانی ئێستا لە کاتی ناردن (in-flight)، بۆ ڕێگریکردن لە دووبارە ناردنی هەمان ئایتم
+    // کاتێک save() و syncPendingItems() (لە پۆلینگەوە) هاوکات دەستپێدەکەن پێش وەرگرتنی وەڵام —
+    // ئەمە هۆکاری ئەو کێشەیە بوو کە هەندێک جار ئایتمێک دوو جار زیاد دەکرا.
+    private val inFlightIds = mutableSetOf<String>()
+
     private fun itemsUrl(groupId: String, itemId: String? = null): String {
         var url = "${FirebaseConfig.firestoreBase}/groups/$groupId/items"
         if (itemId != null) url += "/$itemId"
@@ -132,9 +137,17 @@ object FoodSyncService {
     }
 
     fun save(groupId: String, item: FoodItem, completion: (Boolean) -> Unit = {}) {
+        // ئەگەر ئەم ئایتمە هەر ئێستا لە کاتی ناردندایە (لە هەوڵێکی پێشووتر کە هێشتا وەڵامی
+        // نەگەڕاوەتەوە)، دووبارە مەینێرەوە — ئەمە ڕێگری دەکات لە دروستکردنی دوو تۆماری
+        // جیاواز لە سێرڤەر بۆ هەمان ئایتم (مەسەلەن کاتێک save() و پۆلینگ هاوکات دەبن)
+        if (!inFlightIds.add(item.id)) {
+            mainThread { completion(false) }
+            return
+        }
         AuthManager.validToken { token ->
             if (token == null) {
                 PendingSyncStorage.enqueue(groupId, item)
+                inFlightIds.remove(item.id)
                 mainThread { completion(false) }
                 return@validToken
             }
@@ -157,14 +170,17 @@ object FoodSyncService {
             OkHttpClientProvider.shortTimeout(8).newCall(req).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
                     PendingSyncStorage.enqueue(groupId, item)
+                    inFlightIds.remove(item.id)
                     mainThread { completion(false) }
                 }
                 override fun onResponse(call: Call, response: Response) {
                     if (response.isSuccessful) {
                         PendingSyncStorage.remove(groupId, item.id)
+                        inFlightIds.remove(item.id)
                         mainThread { completion(true) }
                     } else {
                         PendingSyncStorage.enqueue(groupId, item)
+                        inFlightIds.remove(item.id)
                         mainThread { completion(false) }
                     }
                 }
@@ -174,7 +190,7 @@ object FoodSyncService {
 
     /** هەوڵدانەوەی خۆکاری ناردنی هەموو ئایتمە چاوەڕوانەکان (کاتێک خەت باش بێت) */
     fun syncPendingItems(groupId: String, onDone: () -> Unit = {}) {
-        val pending = PendingSyncStorage.get(groupId)
+        val pending = PendingSyncStorage.get(groupId).filter { it.id !in inFlightIds }
         if (pending.isEmpty()) { onDone(); return }
         var remaining = pending.size
         pending.forEach { item ->

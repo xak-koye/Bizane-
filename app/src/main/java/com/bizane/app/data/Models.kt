@@ -144,7 +144,9 @@ object FoodStorage {
     private fun persist() {
         val arr = JSONArray()
         items.forEach { arr.put(it.toJson()) }
-        sp.edit().putString(KEY, arr.toString()).apply()
+        // commit() نەک apply() — دڵنیایی لە نووسینی دەستبەجێ بۆ دیسک، تا ئایتمی
+        // نوێ لەناوناچێت ئەگەر بەکارهێنەر یەکسەر دوای زیادکردن ئەپەکە دابخات.
+        sp.edit().putString(KEY, arr.toString()).commit()
     }
 
     fun add(item: FoodItem) {
