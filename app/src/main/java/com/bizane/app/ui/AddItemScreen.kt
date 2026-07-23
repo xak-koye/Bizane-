@@ -1,11 +1,14 @@
 package com.bizane.app.ui
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Base64
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -66,11 +69,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bizane.app.data.AppSettings
-import com.bizane.app.data.AuthManager
 import com.bizane.app.data.FoodCategory
 import com.bizane.app.data.FoodItem
 import com.bizane.app.data.FoodStorage
-import com.bizane.app.data.FoodSyncService
 import com.bizane.app.ui.theme.FieldBG
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -86,7 +87,6 @@ import kotlinx.coroutines.launch
 fun AddItemScreen(
     vm: FoodViewModel,
     editItem: FoodItem?,
-    groupId: String?,
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
@@ -106,18 +106,6 @@ fun AddItemScreen(
     var showBuyPicker by remember { mutableStateOf(false) }
     var showExpPicker by remember { mutableStateOf(false) }
     var showImageSourceSheet by remember { mutableStateOf(false) }
-    var isSaving by remember { mutableStateOf(false) }
-
-    // خۆکار: بۆنی ئایتمە هەڵگیراوەکە لادراو e، تەنیا کاتێک هی ئەندامێکی ترە لە گروپدا
-    val isReadOnly = remember(editItem) {
-        val item = editItem
-        item != null && groupId != null && item.ownerId != null && item.ownerId != AuthManager.uid
-    }
-    val canDelete = remember(editItem, vm.deleteUnlockedState.value) {
-        val item = editItem
-        if (item == null || groupId == null) true
-        else vm.canModify(item)
-    }
 
     // Load existing image bitmap
     LaunchedEffect(editItem) {
@@ -156,87 +144,61 @@ fun AddItemScreen(
     }
 
     fun launchCamera() {
-        // پێویستە فایلەکە لەناو بوخچەی "images/" دروست بکرێت، چونکە file_paths.xml
-        // تەنیا ئەو ڕێڕەوە دەناسێتەوە (کرش دەکات ئەگەر لە ڕیشەی cacheDir دروست بکرێت)
-        val imagesDir = File(context.cacheDir, "images").apply { if (!exists()) mkdirs() }
-        val file = File.createTempFile("bizane_", ".jpg", imagesDir)
+        val file = File.createTempFile("bizane_", ".jpg", context.cacheDir)
         val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         cameraImageUri = uri
         cameraLauncher.launch(uri)
     }
 
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+    // ڕێگەپێدانی کامێرا لە کاتی runtime دا داوا دەکرێت؛ بێ ئەمە بەرنامەکە کراش دەکات
+    // (permission لە Manifest دا ڕاگەیەندراوە، بەڵام هەرگیز داوای runtime نەدەکرا)
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
         if (granted) launchCamera()
-        else errorMsg = "ڕێگەی کامێرا پێویستە بۆ گرتنی وێنە"
+        else errorMsg = "پێویستە ڕێگە بدەیت بە کامێرا تاوەکو وێنە بگیرێت"
     }
 
     fun requestCameraAndLaunch() {
-        val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
-            context, android.Manifest.permission.CAMERA
-        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        if (hasPermission) launchCamera() else cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+        val granted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) launchCamera() else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
     }
 
     Scaffold(
         containerColor = com.bizane.app.ui.theme.PageBG,
         topBar = {
             TopAppBar(
-                title = { Text(if (isReadOnly) "تەنیا بینین" else if (editItem != null) "دەستکاری بکە" else "زیاد بکە", color = Color.White) },
+                title = { Text(if (editItem != null) "دەستکاری بکە" else "زیاد بکە", color = Color.White) },
                 navigationIcon = {
                     TextButton(onClick = onClose) { Text("داخستن", color = Color.White) }
                 },
                 actions = {
-                    if (!isReadOnly) {
-                        TextButton(onClick = {
-                            if (isSaving) return@TextButton
-                            if (groupId != null && !AppSettings.canEditGroup) {
-                                errorMsg = "ئەدمینی گروپ ڕێگەی زیادکردن/دەستکاریکردنی نەداویت (تەنیا بینین)."
-                                return@TextButton
-                            }
-                            if (name.trim().isEmpty()) {
-                                errorMsg = "تکایە ناوی خواردنەکە بنووسە"; return@TextButton
-                            }
-                            if (expiryDate <= purchaseDate) {
-                                errorMsg = "بەرواری بەسەرچون دەبێت لەدوای بەرواری کڕین بێت"; return@TextButton
-                            }
-                            isSaving = true
-                            if (editItem != null) {
-                                val updated = editItem.copy(
-                                    name = name.trim(), category = category,
-                                    purchaseDate = purchaseDate, expiryDate = expiryDate,
-                                    notes = notes, imageBase64 = pickedBase64 ?: editItem.imageBase64
-                                )
-                                if (groupId != null) {
-                                    // فەوران لە ڕیزی چاوەڕوانیدا دابنێ تا لەخۆوە ون نەبێت، پاشان بە پاشبنەما هەوڵی ناردن بدە
-                                    com.bizane.app.data.PendingSyncStorage.enqueue(groupId, updated)
-                                    vm.refreshAfterEdit()
-                                    FoodSyncService.save(groupId, updated) { vm.refreshAfterEdit() }
-                                } else {
-                                    FoodStorage.update(updated); vm.refreshAfterEdit()
-                                }
-                            } else {
-                                var newItem = FoodItem(
-                                    name = name.trim(), category = category,
-                                    purchaseDate = purchaseDate, expiryDate = expiryDate,
-                                    imageBase64 = pickedBase64, notes = notes
-                                )
-                                if (groupId != null) {
-                                    newItem = newItem.copy(
-                                        ownerId = AuthManager.uid,
-                                        ownerName = AppSettings.userName.ifEmpty { "ئەندام" }
-                                    )
-                                    // فەوران لە ڕیزی چاوەڕوانیدا دابنێ تا دەستبەجێ لە لیستەکەدا دەربکەوێت،
-                                    // تەنانەت لە کاتی نەبوونی ئینتەرنێتیشدا؛ پاشان بە پاشبنەما دەنێردرێت
-                                    com.bizane.app.data.PendingSyncStorage.enqueue(groupId, newItem)
-                                    vm.refreshAfterEdit()
-                                    FoodSyncService.save(groupId, newItem) { vm.refreshAfterEdit() }
-                                } else {
-                                    FoodStorage.add(newItem); vm.refreshAfterEdit()
-                                }
-                            }
-                            onClose()
-                        }) { Text("پاشەکەوت", color = Color.White, fontWeight = FontWeight.Bold) }
-                    }
+                    TextButton(onClick = {
+                        if (name.trim().isEmpty()) {
+                            errorMsg = "تکایە ناوی خواردنەکە بنووسە"; return@TextButton
+                        }
+                        if (expiryDate <= purchaseDate) {
+                            errorMsg = "بەرواری بەسەرچون دەبێت لەدوای بەرواری کڕین بێت"; return@TextButton
+                        }
+                        if (editItem != null) {
+                            val updated = editItem.copy(
+                                name = name.trim(), category = category,
+                                purchaseDate = purchaseDate, expiryDate = expiryDate,
+                                notes = notes, imageBase64 = pickedBase64 ?: editItem.imageBase64
+                            )
+                            FoodStorage.update(updated); vm.refreshAfterEdit()
+                        } else {
+                            val newItem = FoodItem(
+                                name = name.trim(), category = category,
+                                purchaseDate = purchaseDate, expiryDate = expiryDate,
+                                imageBase64 = pickedBase64, notes = notes
+                            )
+                            FoodStorage.add(newItem); vm.refreshAfterEdit()
+                        }
+                        onClose()
+                    }) { Text("پاشەکەوت", color = Color.White, fontWeight = FontWeight.Bold) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = com.bizane.app.ui.theme.PageBG)
             )
@@ -249,13 +211,6 @@ fun AddItemScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            if (isReadOnly) {
-                Text(
-                    "🔒  ئەم ئایتمە هی ئەندامێکی ترە — تەنیا دەتوانیت بیبینیت",
-                    color = Color(0xFFFF9500), fontSize = 12.sp, fontWeight = FontWeight.Medium
-                )
-                Spacer(Modifier.height(14.dp))
-            }
             errorMsg?.let {
                 Text(it, color = Color(0xFFFF3B30), fontSize = 13.sp)
                 Spacer(Modifier.height(10.dp))
@@ -268,7 +223,7 @@ fun AddItemScreen(
                         .size(150.dp, 100.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(FieldBG)
-                        .clickable(enabled = !isReadOnly) { showImageSourceSheet = true },
+                        .clickable { showImageSourceSheet = true },
                     contentAlignment = Alignment.Center
                 ) {
                     if (pickedBitmap != null) {
@@ -286,7 +241,7 @@ fun AddItemScreen(
                         }
                     }
                 }
-                if (pickedBitmap != null && !isReadOnly) {
+                if (pickedBitmap != null) {
                     Box(
                         modifier = Modifier
                             .padding(start = 110.dp, top = 62.dp)
@@ -304,7 +259,7 @@ fun AddItemScreen(
             Spacer(Modifier.height(18.dp))
             SectionLabel("ناوی خواردن")
             OutlinedTextField(
-                value = name, onValueChange = { name = it }, enabled = !isReadOnly,
+                value = name, onValueChange = { name = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 colors = fieldColors()
@@ -314,32 +269,27 @@ fun AddItemScreen(
             SectionLabel("جۆری خواردن")
             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(FoodCategory.selectable) { cat ->
-                    CategoryChip(cat, selected = cat == category) { if (!isReadOnly) category = cat }
+                    CategoryChip(cat, selected = cat == category) { category = cat }
                 }
             }
 
             Spacer(Modifier.height(16.dp))
             SectionLabel("بەرواری کڕین")
-            DateField(purchaseDate, enabled = !isReadOnly) { showBuyPicker = true }
+            DateField(purchaseDate, enabled = true) { showBuyPicker = true }
 
             Spacer(Modifier.height(16.dp))
             SectionLabel("بەرواری بەسەرچون")
-            DateField(expiryDate, enabled = !isReadOnly) { showExpPicker = true }
+            DateField(expiryDate, enabled = true) { showExpPicker = true }
 
             Spacer(Modifier.height(16.dp))
             SectionLabel("تێبینی")
             OutlinedTextField(
-                value = notes, onValueChange = { notes = it }, enabled = !isReadOnly,
+                value = notes, onValueChange = { notes = it },
                 modifier = Modifier.fillMaxWidth().height(90.dp),
                 colors = fieldColors()
             )
 
-            if (groupId != null && editItem?.ownerName != null) {
-                Spacer(Modifier.height(10.dp))
-                Text("👤 زیادکراوە لەلایەن: ${editItem.ownerName}", color = Color.Gray, fontSize = 12.sp)
-            }
-
-            if (editItem != null && canDelete) {
+            if (editItem != null) {
                 Spacer(Modifier.height(20.dp))
                 Button(
                     onClick = { showDeleteConfirm = true },
@@ -377,12 +327,7 @@ fun AddItemScreen(
                 TextButton(onClick = {
                     showDeleteConfirm = false
                     editItem?.let { item ->
-                        if (groupId != null && item.firestoreId != null) {
-                            val myName = AppSettings.userName.ifEmpty { "ئەندام" }
-                            FoodSyncService.delete(groupId, item, myName)
-                        } else {
-                            FoodStorage.delete(item.id)
-                        }
+                        FoodStorage.delete(item.id)
                         vm.refreshAfterEdit()
                     }
                     onClose()
