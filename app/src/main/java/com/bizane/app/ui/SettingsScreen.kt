@@ -20,8 +20,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -45,8 +43,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.bizane.app.data.AppLang
+import com.bizane.app.data.AppLanguage
 import com.bizane.app.data.AppSettings
 import com.bizane.app.data.FoodStorage
+import com.bizane.app.data.L
+import com.bizane.app.data.LocalTrashStorage
 import com.bizane.app.ui.theme.CardBG
 import com.bizane.app.ui.theme.PageBG
 
@@ -54,64 +56,26 @@ import com.bizane.app.ui.theme.PageBG
 @Composable
 fun SettingsScreen(
     vm: FoodViewModel,
-    onOpenGroup: () -> Unit
+    onOpenTrash: () -> Unit,
+    onOpenAbout: () -> Unit = {},
+    onOpenAccount: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val notifOptions = listOf(1, 3, 7)
     var notifSelected by remember { mutableStateOf(notifOptions.indexOf(AppSettings.notifDays).let { if (it < 0) 1 else it }) }
     var showClearConfirm by remember { mutableStateOf(false) }
-    var googleRefreshTick by remember { mutableStateOf(0) } // بۆ recomposition دوای گۆڕینی linkedEmail
-    var googleBusy by remember { mutableStateOf(false) }
-    var googleAlert by remember { mutableStateOf<Pair<String, String>?>(null) }
-    var showGoogleSignOutConfirm by remember { mutableStateOf(false) }
-
-    fun startGoogleLink() {
-        googleBusy = true
-        com.bizane.app.data.GoogleSignInHelper.start(context) { idToken, error ->
-            if (idToken == null) {
-                googleBusy = false
-                if (error != null) googleAlert = "سەرکەوتوو نەبوو" to error
-                return@start
-            }
-            com.bizane.app.data.AuthManager.linkOrSignIn("google.com", idToken) { ok, err ->
-                if (ok) {
-                    // ئەگەر لەم مۆبایلە لە هیچ گروپێک نیت، بگەڕێ بۆ ئەو گروپەی پێشتر ئەندامی بوویت
-                    if (AppSettings.groupId.isEmpty()) {
-                        com.bizane.app.data.GroupService.findMyGroup { groupId, name, code, ownerId, _ ->
-                            googleBusy = false
-                            googleRefreshTick++
-                            if (groupId != null && name != null && ownerId != null) {
-                                AppSettings.setGroup(groupId, name, code ?: "", ownerId)
-                                vm.startPollingIfNeeded()
-                                googleAlert = "پارێزراوە بە Google ✅" to
-                                    "ئێستا داتاکەت پارێزراوە، هەروەها خۆکار گەڕایتەوە ناو گروپەکەت: $name"
-                            } else {
-                                googleAlert = "پارێزراوە بە Google ✅" to "ئێستا داتاکەت پارێزراوە."
-                            }
-                        }
-                    } else {
-                        googleBusy = false
-                        googleRefreshTick++
-                        googleAlert = "پارێزراوە بە Google ✅" to "ئێستا داتاکەت پارێزراوە."
-                    }
-                } else {
-                    googleBusy = false
-                    googleAlert = "هەڵە" to (err ?: "هەوڵدانەوە بکە.")
-                }
-            }
-        }
-    }
+    var showLanguagePicker by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = PageBG,
         topBar = {
             TopAppBar(
-                title = { Text("رێکخستنەکان", color = Color.White) },
+                title = { Text(L("tab.settings"), color = Color.White) },
                 actions = {
                     TextButton(onClick = {
                         AppSettings.notifDays = notifOptions[notifSelected]
                         vm.refreshAfterEdit()
-                    }) { Text("پاشەکەوت", color = Color.White, fontWeight = FontWeight.Bold) }
+                    }) { Text(L("common.save"), color = Color.White, fontWeight = FontWeight.Bold) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = PageBG)
             )
@@ -124,135 +88,97 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            SectionHeader("🔔  ئاگادارکردنەوە")
+            SectionHeader(L("settings.notifSection"))
             Card {
-                Text("ئاگادارکردنەوە پێش چەند رۆژ؟", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                Text(L("settings.notifQuestion"), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.height(10.dp))
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    listOf("١ رۆژ", "٣ رۆژ", "٧ رۆژ").forEachIndexed { i, label ->
+                    notifOptions.forEachIndexed { i, days ->
                         SegmentedButton(
                             selected = notifSelected == i,
                             onClick = { notifSelected = i },
-                            shape = SegmentedButtonDefaults.itemShape(index = i, count = 3),
+                            shape = SegmentedButtonDefaults.itemShape(index = i, count = notifOptions.size),
                             colors = SegmentedButtonDefaults.colors(
-                                activeContainerColor = androidx.compose.ui.graphics.Color(0xFF0A84FF),
+                                activeContainerColor = Color(0xFF0A84FF),
                                 activeContentColor = Color.White,
                                 inactiveContainerColor = CardBG,
                                 inactiveContentColor = Color.White
                             )
-                        ) { Text(label) }
+                        ) { Text(L("settings.notifDaysOpt", days)) }
                     }
                 }
             }
 
+            // زمان
             Spacer(Modifier.height(20.dp))
-            SectionHeader("↕️  ڕیزکردنی ئایتمەکان")
-            Card {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    SortMode.values().forEachIndexed { i, mode ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { vm.setSortMode(mode) }
-                                .padding(vertical = 10.dp)
-                        ) {
-                            Text(mode.title, color = Color.White, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                            if (vm.sortMode.value == mode) {
-                                Text("✓", color = Color(0xFF0A84FF), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            }
-                        }
-                        if (i != SortMode.values().lastIndex) {
-                            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF383838)))
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
-            SectionHeader("🔒  پاراستنی هەژمار / باکئەپ")
-            run {
-                googleRefreshTick // dependency بۆ recomposition
-                val linkedEmail = com.bizane.app.data.AuthManager.linkedEmail
-                Card {
-                    Text(
-                        if (linkedEmail.isEmpty())
-                            "ئەگەر مۆبایل بگۆڕیت یان ئەپ دووبارە دابمەزرێنیتەوە، گروپ و داتاکانت لەناودەچن مەگەر پارێزگاریان بکەیت بە هەژمارێکی Google."
-                        else "پارێزراوە بە Google ✅  ($linkedEmail)",
-                        color = if (linkedEmail.isEmpty()) Color.Gray else Color(0xFF33D976),
-                        fontSize = 13.sp
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    ActionButton(
-                        if (googleBusy) "چاوەڕوانبە..."
-                        else if (linkedEmail.isEmpty()) "پارێزگاری بکە بە Google" else "چوونە دەرەوە لە Google",
-                        color = if (linkedEmail.isEmpty()) Color(0xFF0A84FF) else Color(0xFFFF3B30)
-                    ) {
-                        if (googleBusy) return@ActionButton
-                        if (linkedEmail.isEmpty()) startGoogleLink() else showGoogleSignOutConfirm = true
-                    }
-                }
-            }
-
-
-            val groupTitle = if (AppSettings.groupId.isEmpty()) "بەشداریکردن/دروستکردنی گروپ"
-                else "گروپ: ${AppSettings.groupName}  (کۆد: ${AppSettings.groupCode})"
-            ActionButton(groupTitle, color = if (AppSettings.groupId.isEmpty()) Color(0xFF0A84FF) else Color.White) { onOpenGroup() }
-
-            Spacer(Modifier.height(20.dp))
-            SectionHeader("📊  ئامار")
-            StatsCard()
-
-            Spacer(Modifier.height(20.dp))
-            SectionHeader("🗑  داتا")
-            ActionButton("سڕینەوەی هەموو خواردنەکان", color = Color(0xFFFF3B30)) { showClearConfirm = true }
-
-            Spacer(Modifier.height(20.dp))
-            SectionHeader("ℹ️  دەربارە")
-            Card {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                    Text("🍽️", fontSize = 34.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Text("بەسەرچوو!", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text("وەشان ١.٠", color = Color.Gray, fontSize = 13.sp)
-                    Spacer(Modifier.height(14.dp))
-                    Box(modifier = Modifier.fillMaxWidth(0.6f).height(1.dp).background(Color(0xFF383838)))
-                    Spacer(Modifier.height(14.dp))
-                    Text(
-                        "دروستکراوە لەلایەن ستافی ئارا تیمەوە", color = Color.Gray,
-                        fontSize = 13.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "ئامانجی ئەپەکە ئاگاداربوونتە لە بەرواری بەسەرچوونی خواردنەکانت،\nتاوەکو هیچ خواردنێکت بەفیڕۆ نەچێت.",
-                        color = Color.Gray, fontSize = 12.sp, textAlign = TextAlign.Center
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Text("گەشەپێدەر: خاک کۆیی", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
-            SectionHeader("📞  پەیوەندی")
+            SectionHeader(L("settings.languageSection"))
             Card {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().clickable {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.facebook.com/khoshawe1/"))
-                        context.startActivity(intent)
-                    }
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth().clickable { showLanguagePicker = true }
                 ) {
-                    Box(
-                        modifier = Modifier.size(44.dp).clip(CircleShape).background(Color(0xFF1877F2)),
-                        contentAlignment = Alignment.Center
-                    ) { Text("f", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 24.sp) }
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text("فەیسبووک", color = Color.White, fontWeight = FontWeight.Medium, fontSize = 15.sp)
-                        Text("پەیوەندیمان پێوە بکە", color = Color.Gray, fontSize = 12.sp)
-                    }
+                    Text(AppLang.current.title, color = Color.White, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                    Text("🌐", fontSize = 18.sp)
                 }
             }
+
+            // هەژمار و باکئەپ
+            Spacer(Modifier.height(20.dp))
+            SectionHeader(L("settings.accountSection"))
+            Card {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth().clickable { onOpenAccount() }
+                ) {
+                    Column {
+                        Text(L("settings.accountBackupBtn"), color = Color.White, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                        val linked = com.bizane.app.data.DriveTokenStore.isLinked
+                        Text(
+                            if (linked) L("settings.accountRowSubtitleLinked", com.bizane.app.data.DriveTokenStore.accountEmail ?: "")
+                            else L("settings.accountRowSubtitleUnlinked"),
+                            color = if (linked) Color(0xFF33D976) else Color(0xFFFF9500), fontSize = 12.sp
+                        )
+                    }
+                    Text("›", color = Color.Gray, fontSize = 20.sp)
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+            SectionHeader(L("settings.statsSection"))
+            StatsCard()
+
+            // سڕاوەکان — دوگمەیەکی زیندوو کە پەڕەیەکی تایبەت دەکاتەوە، لەگەڵ وێنە و گەڕاندنەوە
+            Spacer(Modifier.height(20.dp))
+            SectionHeader(L("settings.trashSection"))
+            val trashCount = LocalTrashStorage.entries.size
+            FilledActionButton(
+                if (trashCount > 0) "🧹  ${L("settings.trashSection").trim()}  ·  $trashCount" else L("settings.trashSection"),
+                color = Color(0xFF3378FA)
+            ) { onOpenTrash() }
+
+            Spacer(Modifier.height(20.dp))
+            SectionHeader(L("settings.aboutContactSection"))
+            Card {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth().clickable { onOpenAbout() }
+                ) {
+                    Column {
+                        Text(L("settings.aboutContactBtn"), color = Color.White, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                        Text(L("settings.aboutRowSubtitle"), color = Color.Gray, fontSize = 12.sp)
+                    }
+                    Text("›", color = Color.Gray, fontSize = 20.sp)
+                }
+            }
+
+            // داتا (مەترسیدارە، لەبەرئەوە لە خوارەوەی هەمووی دانراوە)
+            Spacer(Modifier.height(20.dp))
+            SectionHeader(L("settings.dataSection"))
+            ActionButton(L("settings.clearAll"), color = Color(0xFFFF3B30)) { showClearConfirm = true }
+
             Spacer(Modifier.height(30.dp))
         }
     }
@@ -260,46 +186,45 @@ fun SettingsScreen(
     if (showClearConfirm) {
         AlertDialog(
             onDismissRequest = { showClearConfirm = false },
-            title = { Text("دڵنیایی؟") },
-            text = { Text("هەموو خواردنەکان دەسڕێتەوە. ئەم کارە ناگەڕێتەوە!") },
+            title = { Text(L("common.areYouSure")) },
+            text = { Text(L("settings.clearAllMsg")) },
             confirmButton = {
                 TextButton(onClick = {
                     showClearConfirm = false
                     FoodStorage.items.toList().forEach { FoodStorage.delete(it.id) }
                     vm.refreshAfterEdit()
-                }) { Text("بەڵێ، هەموویان بسڕەوە", color = Color(0xFFFF3B30)) }
+                }) { Text(L("settings.yesDeleteAll"), color = Color(0xFFFF3B30)) }
             },
-            dismissButton = { TextButton(onClick = { showClearConfirm = false }) { Text("نەخێر") } }
+            dismissButton = { TextButton(onClick = { showClearConfirm = false }) { Text(L("common.no")) } }
         )
     }
 
-    if (showGoogleSignOutConfirm) {
+    if (showLanguagePicker) {
         AlertDialog(
-            onDismissRequest = { showGoogleSignOutConfirm = false },
-            title = { Text("چوونە دەرەوە لە Google؟") },
+            onDismissRequest = { showLanguagePicker = false },
+            title = { Text(L("settings.languageQuestion")) },
             text = {
-                Text(
-                    "ئەم مۆبایلە دەبێتەوە بێ backup (ئەگەر مۆبایل بگۆڕیت، داتاکانت پارێزراو نامێننەوە)، " +
-                        "بەڵام هەموو گروپ و مەوادەکانت لەم مۆبایلە دەمێننەوە وەک خۆیان."
-                )
+                Column {
+                    AppLanguage.values().forEach { lang ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    AppLang.current = lang
+                                    showLanguagePicker = false
+                                }
+                                .padding(vertical = 12.dp)
+                        ) {
+                            Text(if (AppLang.current == lang) "●  " else "○  ")
+                            Text(lang.title, fontSize = 16.sp)
+                        }
+                    }
+                }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    showGoogleSignOutConfirm = false
-                    com.bizane.app.data.AuthManager.signOutGoogle()
-                    googleRefreshTick++
-                }) { Text("چوونە دەرەوە", color = Color(0xFFFF3B30)) }
-            },
-            dismissButton = { TextButton(onClick = { showGoogleSignOutConfirm = false }) { Text("پاشگەزبوونەوە") } }
-        )
-    }
-
-    googleAlert?.let { (title, message) ->
-        AlertDialog(
-            onDismissRequest = { googleAlert = null },
-            title = { Text(title) },
-            text = { Text(message) },
-            confirmButton = { TextButton(onClick = { googleAlert = null }) { Text("باشە") } }
+                TextButton(onClick = { showLanguagePicker = false }) { Text(L("common.close")) }
+            }
         )
     }
 }
@@ -338,6 +263,22 @@ private fun ActionButton(title: String, color: Color, onClick: () -> Unit) {
     }
 }
 
+/** دوگمەیەکی زیندووتر بۆ کردارە گرنگەکان — پاسدەخراوی ڕەنگاوڕەنگ، تاوەکو زۆر لە پێش چاو بێت */
+@Composable
+private fun FilledActionButton(title: String, color: Color, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(color)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+    }
+}
+
 @Composable
 private fun StatsCard() {
     val items = FoodStorage.items
@@ -347,10 +288,10 @@ private fun StatsCard() {
 
     Card {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            StatItem("${items.size}", "کۆی گشتی", Color.White)
-            StatItem("$ok", "باش", Color(0xFF33D976))
-            StatItem("$soon", "نزیک", Color(0xFFFF9500))
-            StatItem("$expired", "بەسەرچوو", Color(0xFFFF3B30))
+            StatItem("${items.size}", L("stats.total"), Color.White)
+            StatItem("$ok", L("stats.ok"), Color(0xFF33D976))
+            StatItem("$soon", L("stats.soon"), Color(0xFFFF9500))
+            StatItem("$expired", L("stats.expired"), Color(0xFFFF3B30))
         }
     }
 }

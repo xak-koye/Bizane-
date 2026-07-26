@@ -58,17 +58,21 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.1")
 
-    // Networking (same Firestore REST API used by the iOS app)
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-
-    // Chrome Custom Tabs — بۆ سیستەمی چوونەژوورەوە بە Google (هەمان شێوازی iOS، بێ پێویستی بە Google Sign-In SDK)
-    implementation("androidx.browser:browser:1.8.0")
-
-    // On-device text recognition (mirrors the OCR auto-fill in the iOS app)
+    // On-device text recognition (auto-fill name from photo)
     implementation("com.google.mlkit:text-recognition:16.0.0")
 
-    // Coil for loading base64/bitmap images inside Compose
-    implementation("io.coil-kt:coil-compose:2.6.0")
+    // Barcode scanning (equivalent to AVFoundation metadata scanning on iOS)
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+
+    // CameraX (camera preview + frame analysis for the barcode scanner screen)
+    implementation("androidx.camera:camera-core:1.3.4")
+    implementation("androidx.camera:camera-camera2:1.3.4")
+    implementation("androidx.camera:camera-lifecycle:1.3.4")
+    implementation("androidx.camera:camera-view:1.3.4")
+
+    // Coroutines (used by the Open Food Facts lookup + ML Kit task bridging)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    implementation("androidx.concurrent:concurrent-futures-ktx:1.2.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

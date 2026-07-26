@@ -20,18 +20,12 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.LockOpen
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
@@ -45,7 +39,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,20 +49,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bizane.app.data.AppSettings
 import com.bizane.app.data.FoodCategory
 import com.bizane.app.data.FoodItem
-import com.bizane.app.data.GroupService
+import com.bizane.app.data.L
 import com.bizane.app.ui.theme.CardBG
 import com.bizane.app.ui.theme.FieldBG
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,14 +70,6 @@ fun MainScreen(
     var cardToggle by remember { mutableStateOf(isCard) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var showLockDialog by remember { mutableStateOf(false) }
-
-    LaunchedEffect(vm.wasKicked.value) {
-        if (vm.wasKicked.value) {
-            snackbarHostState.showSnackbar("ئەدمین لە گروپەکە دەریکردیت", duration = androidx.compose.material3.SnackbarDuration.Long)
-            vm.consumeKicked()
-        }
-    }
 
     Scaffold(
         containerColor = com.bizane.app.ui.theme.PageBG,
@@ -111,7 +91,7 @@ fun MainScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val name = AppSettings.userName
                 Text(
-                    if (name.isEmpty()) "خواردنەکانم" else "سڵاو، $name!",
+                    if (name.isEmpty()) L("main.title") else "سڵاو، $name!",
                     color = Color.White, fontWeight = FontWeight.Bold, fontSize = 26.sp
                 )
                 Spacer(Modifier.width(8.dp))
@@ -124,19 +104,6 @@ fun MainScreen(
                     Text("${items.size}", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
                 Spacer(Modifier.weight(1f))
-                if (vm.isGrouped.value) {
-                    IconCircleButton(
-                        imageVector = if (vm.deleteUnlockedState.value) Icons.Filled.LockOpen else Icons.Filled.Lock,
-                        tint = if (vm.deleteUnlockedState.value) Color(0xFFFF3B30) else Color.White
-                    ) {
-                        if (vm.deleteUnlockedState.value) {
-                            vm.setDeleteUnlocked(false)
-                        } else {
-                            showLockDialog = true
-                        }
-                    }
-                    Spacer(Modifier.width(8.dp))
-                }
                 IconCircleButton(imageVector = if (cardToggle) Icons.Filled.ViewList else Icons.Filled.GridView) {
                     cardToggle = vm.toggleCardView()
                 }
@@ -144,30 +111,22 @@ fun MainScreen(
                 IconCircleButton(imageVector = Icons.Filled.Add) { onOpenItem(null) }
             }
 
-            Spacer(Modifier.height(4.dp))
-            Text(
-                statusText(vm),
-                color = Color.Gray, fontSize = 12.sp
-            )
-
             Spacer(Modifier.height(10.dp))
             // Search
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = vm.searchQuery.value,
-                    onValueChange = { vm.setSearch(it) },
-                    modifier = Modifier.weight(1f).height(52.dp),
-                    placeholder = { Text("🔍  گەڕان بەدوای خواردندا...", color = Color.Gray, fontSize = 14.sp) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = FieldBG, unfocusedContainerColor = FieldBG,
-                        disabledContainerColor = FieldBG,
-                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
-                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent
-                    )
+            OutlinedTextField(
+                value = vm.searchQuery.value,
+                onValueChange = { vm.setSearch(it) },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                placeholder = { Text(L("search.placeholder"), color = Color.Gray, fontSize = 14.sp) },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = FieldBG, unfocusedContainerColor = FieldBG,
+                    disabledContainerColor = FieldBG,
+                    focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                    focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent
                 )
-            }
+            )
 
             Spacer(Modifier.height(14.dp))
             // Category chips
@@ -182,8 +141,7 @@ fun MainScreen(
             if (items.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        if (vm.searchQuery.value.isBlank()) "🛒\n\nهیچ خواردنێک نییە\nبستێنە + بۆ زیادکردن"
-                        else "🔍\n\nهیچ ئەنجامێک نەدۆزرایەوە",
+                        if (vm.searchQuery.value.isBlank()) L("list.empty") else L("list.emptySearch"),
                         color = Color.Gray, fontSize = 15.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }
@@ -195,11 +153,7 @@ fun MainScreen(
                     contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
                     items(items, key = { it.id }) { item ->
-                        FoodCard(
-                            item,
-                            isPending = vm.isGrouped.value && item.firestoreId == null,
-                            onClick = { onOpenItem(item) }
-                        )
+                        FoodCard(item, onClick = { onOpenItem(item) })
                     }
                 }
             } else {
@@ -210,15 +164,13 @@ fun MainScreen(
                     items(items, key = { it.id }) { item ->
                         SwipeableFoodRow(
                             item = item,
-                            canModify = vm.canModify(item),
-                            isPending = vm.isGrouped.value && item.firestoreId == null,
                             onClick = { onOpenItem(item) },
                             onDeleteConfirmed = {
                                 vm.deleteItem(item)
                                 scope.launch {
                                     val result = snackbarHostState.showSnackbar(
-                                        message = "\"${item.name}\" سڕایەوە",
-                                        actionLabel = "گەڕاندنەوە",
+                                        message = L("undo.deleted", item.name),
+                                        actionLabel = L("common.undo"),
                                         duration = androidx.compose.material3.SnackbarDuration.Short
                                     )
                                     if (result == SnackbarResult.ActionPerformed) vm.undoDelete()
@@ -231,42 +183,12 @@ fun MainScreen(
             }
         }
     }
-
-    if (showLockDialog) {
-        LockUnlockDialog(
-            onDismiss = { showLockDialog = false },
-            onConfirm = { user, pass, callback ->
-                GroupService.fetchDeleteCredentials(AppSettings.groupId) { savedUser, savedHash ->
-                    val ok = !savedUser.isNullOrEmpty() && !savedHash.isNullOrEmpty() &&
-                        user == savedUser && GroupService.sha256(pass) == savedHash
-                    if (ok) {
-                        vm.setDeleteUnlocked(true)
-                        showLockDialog = false
-                    }
-                    callback(ok)
-                }
-            }
-        )
-    }
-}
-
-private fun statusText(vm: FoodViewModel): String {
-    return if (vm.isGrouped.value) {
-        val pendingCount = com.bizane.app.data.PendingSyncStorage.get(AppSettings.groupId).size
-        val base = vm.lastSyncTime.value?.let {
-            val f = SimpleDateFormat("HH:mm", Locale.getDefault())
-            "🔄 دوایین نوێکردنەوە: ${f.format(Date(it))}"
-        } ?: "🔄 نوێکردنەوە..."
-        if (pendingCount > 0) "$base  ·  ⏳ $pendingCount چاوەڕوانی ناردنن" else base
-    } else "📱 کۆگای کەسی"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeableFoodRow(
     item: FoodItem,
-    canModify: Boolean,
-    isPending: Boolean = false,
     onClick: () -> Unit,
     onDeleteConfirmed: () -> Unit
 ) {
@@ -275,25 +197,22 @@ private fun SwipeableFoodRow(
     if (showConfirm) {
         AlertDialog(
             onDismissRequest = { showConfirm = false },
-            title = { Text("دڵنیایت؟") },
-            text = { Text("ئایا دەتەوێت \"${item.name}\" بسڕیتەوە؟ ئەم کارە ناگەڕێتەوە.") },
+            title = { Text(L("common.areYouSure")) },
+            text = { Text(L("item.deleteConfirmMsg", item.name)) },
             confirmButton = {
                 TextButton(onClick = { showConfirm = false; onDeleteConfirmed() }) {
-                    Text("بەڵێ، بسڕەوە", color = Color(0xFFFF3B30))
+                    Text(L("common.yesDelete"), color = Color(0xFFFF3B30))
                 }
             },
-            dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("نەخێر") } }
+            dismissButton = { TextButton(onClick = { showConfirm = false }) { Text(L("common.no")) } }
         )
     }
 
-    if (!canModify) {
-        FoodListRow(item, isPending = isPending, onClick = onClick)
-        return
-    }
-
     val dismissState = rememberSwipeToDismissBoxState(
+        // خۆشترکردنی سلایدکردن: پێویست نییە هەتا نیوەی گەشەکە بکێشرێت
+        positionalThreshold = { totalDistance -> totalDistance * 0.3f },
         confirmValueChange = { value ->
-            if (value != SwipeToDismissBoxValue.Settled) {
+            if (value == SwipeToDismissBoxValue.EndToStart) {
                 showConfirm = true
             }
             false // ناهێڵین خۆکارانە لاببرێت، سڕینەوەی ڕاستەقینە پاش دڵنیایی دەکرێت
@@ -302,9 +221,11 @@ private fun SwipeableFoodRow(
 
     SwipeToDismissBox(
         state = dismissState,
+        // تەنیا یەک ئاراستە چالاکە، بۆ ئەوەی پاسیڤی سڕینەوە هەمیشە لە هەمان لا دەربکەوێت
         enableDismissFromStartToEnd = false,
         enableDismissFromEndToStart = true,
         backgroundContent = {
+            val progress = dismissState.progress.coerceIn(0f, 1f)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -312,52 +233,14 @@ private fun SwipeableFoodRow(
                     .background(Color(0xFFFF3B30)),
                 contentAlignment = Alignment.CenterEnd
             ) {
-                Text("🗑 سڕینەوە", color = Color.White, modifier = Modifier.padding(horizontal = 20.dp))
+                Text(
+                    L("add.deleteBtn"),
+                    color = Color.White.copy(alpha = 0.4f + 0.6f * progress),
+                    modifier = Modifier.padding(horizontal = 20.dp)
+                )
             }
         }
     ) {
-        FoodListRow(item, isPending = isPending, onClick = onClick)
+        FoodListRow(item, onClick = onClick)
     }
-}
-
-@Composable
-private fun LockUnlockDialog(onDismiss: () -> Unit, onConfirm: (String, String, (Boolean) -> Unit) -> Unit) {
-    var user by remember { mutableStateOf("") }
-    var pass by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("کردنەوەی دەسەڵاتی سڕینەوە") },
-        text = {
-            Column {
-                Text(
-                    "یوزەرنەیم و وشەی نهێنی بنووسە تاوەکو هەموو ئەندامان بتوانن هەر ئایتمێک بسڕنەوە.",
-                    fontSize = 13.sp, color = Color.Gray
-                )
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = user, onValueChange = { user = it; error = false },
-                    label = { Text("یوزەرنەیم") }, singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = pass, onValueChange = { pass = it; error = false },
-                    label = { Text("وشەی نهێنی") }, singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                if (error) {
-                    Spacer(Modifier.height(6.dp))
-                    Text("یوزەر یان وشەی نهێنی هەڵەیە", color = Color(0xFFFF3B30), fontSize = 12.sp)
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(user, pass) { ok -> error = !ok } }) { Text("کردنەوە") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("پاشگەزبوونەوە") } }
-    )
 }

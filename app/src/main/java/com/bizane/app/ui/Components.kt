@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bizane.app.data.FoodCategory
 import com.bizane.app.data.FoodItem
+import com.bizane.app.data.L
 import com.bizane.app.ui.theme.CardBG
 import com.bizane.app.ui.theme.ChipBG
 import java.text.SimpleDateFormat
@@ -59,7 +60,7 @@ fun CategoryChip(cat: FoodCategory, selected: Boolean, onClick: () -> Unit) {
             .padding(horizontal = 16.dp, vertical = 7.dp)
     ) {
         Text(
-            "${cat.emoji}  ${cat.raw}",
+            "${cat.emoji}  ${cat.title}",
             color = if (selected) Color(0xFF12121A) else Color.White,
             fontWeight = FontWeight.SemiBold,
             fontSize = 14.sp
@@ -68,7 +69,7 @@ fun CategoryChip(cat: FoodCategory, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-fun FoodListRow(item: FoodItem, isPending: Boolean = false, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun FoodListRow(item: FoodItem, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val bmp = rememberItemBitmap(item.imageBase64)
     Row(
         modifier = modifier
@@ -99,19 +100,12 @@ fun FoodListRow(item: FoodItem, isPending: Boolean = false, modifier: Modifier =
         }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(item.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, maxLines = 2, modifier = Modifier.weight(1f, fill = false))
-                if (isPending) {
-                    Spacer(Modifier.width(6.dp))
-                    PendingSyncBadge()
-                }
-            }
+            Text(item.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, maxLines = 2)
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(item.statusText, color = Color(item.statusColor), fontSize = 13.sp)
                 Spacer(Modifier.weight(1f))
-                var dateText = "${dateFmt.format(Date(item.purchaseDate))} ~ ${dateFmt.format(Date(item.expiryDate))}"
-                item.ownerName?.let { dateText += "  ·  👤 $it" }
+                val dateText = "${dateFmt.format(Date(item.purchaseDate))} ~ ${dateFmt.format(Date(item.expiryDate))}"
                 Text(dateText, color = Color.Gray, fontSize = 11.sp)
             }
             Spacer(Modifier.height(8.dp))
@@ -134,21 +128,8 @@ fun FoodListRow(item: FoodItem, isPending: Boolean = false, modifier: Modifier =
     }
 }
 
-/** نیشانەیەکی بچووک بۆ ئایتمێک کە هێشتا نەگەیشتووەتە گروپ (چاوەڕوانی ناردنە) */
 @Composable
-fun PendingSyncBadge() {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFF3A2E00))
-            .padding(horizontal = 6.dp, vertical = 2.dp)
-    ) {
-        Text("⏳ چاوەڕوانە", color = Color(0xFFFFCC00), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-fun FoodCard(item: FoodItem, isPending: Boolean = false, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun FoodCard(item: FoodItem, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val bmp = rememberItemBitmap(item.imageBase64)
     Box(
         modifier = modifier
@@ -171,11 +152,6 @@ fun FoodCard(item: FoodItem, isPending: Boolean = false, modifier: Modifier = Mo
                 modifier = Modifier.align(Alignment.Center)
             )
         }
-        if (isPending) {
-            Box(modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
-                PendingSyncBadge()
-            }
-        }
         // dark gradient overlay at bottom for text legibility
         Box(
             modifier = Modifier
@@ -192,8 +168,7 @@ fun FoodCard(item: FoodItem, isPending: Boolean = false, modifier: Modifier = Mo
             Text(item.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 2)
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                var statusText = item.statusText
-                item.ownerName?.let { statusText += " · 👤$it" }
+                val statusText = item.statusText
                 Text(statusText, color = Color(item.statusColor), fontSize = 12.sp, modifier = Modifier.weight(1f))
                 Box(
                     modifier = Modifier
@@ -202,7 +177,7 @@ fun FoodCard(item: FoodItem, isPending: Boolean = false, modifier: Modifier = Mo
                         .padding(horizontal = 8.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        " ${maxOf(item.daysLeft, 0)}رۆژ ",
+                        L("badge.daysLeft", maxOf(item.daysLeft, 0)),
                         color = Color.Black,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp
