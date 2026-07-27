@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import com.bizane.app.data.L
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
