@@ -33,7 +33,9 @@ data class FoodItem(
     var expiryDate: Long,
     var imageBase64: String? = null,
     var notes: String = "",
-    var barcode: String? = null
+    var barcode: String? = null,
+    var notifyEnabled: Boolean = false,
+    var notifyDaysBefore: Int = 1
 ) {
     val daysLeft: Int
         get() {
@@ -85,6 +87,8 @@ data class FoodItem(
         put("imageBase64", imageBase64 ?: JSONObject.NULL)
         put("notes", notes)
         put("barcode", barcode ?: JSONObject.NULL)
+        put("notifyEnabled", notifyEnabled)
+        put("notifyDaysBefore", notifyDaysBefore)
     }
 
     companion object {
@@ -96,7 +100,9 @@ data class FoodItem(
             expiryDate = o.optLong("expiryDate", System.currentTimeMillis()),
             imageBase64 = if (o.isNull("imageBase64")) null else o.optString("imageBase64", null),
             notes = o.optString("notes", ""),
-            barcode = if (o.isNull("barcode")) null else o.optString("barcode", null)
+            barcode = if (o.isNull("barcode")) null else o.optString("barcode", null),
+            notifyEnabled = o.optBoolean("notifyEnabled", false),
+            notifyDaysBefore = o.optInt("notifyDaysBefore", 1)
         )
     }
 }

@@ -16,8 +16,8 @@ import java.net.URL
  */
 object DriveTokenStore {
     // OAuth Client ID (جۆری Web application، بەکارهاتووە لەگەڵ redirect http://127.0.0.1:<port>)
-    const val CLIENT_ID = "78294912903-ffjf1b5q162c2dibho92ftb4jm7nqabo.apps.googleusercontent.com"
-    const val CLIENT_SECRET = "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"
+    const val CLIENT_ID = "78294912903-9natrl7sjb3snm7b65lqfjhf44dh5vr0.apps.googleusercontent.com"
+    const val CLIENT_SECRET = "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"
     const val DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.appdata"
 
     private const val ACCESS_KEY = "drive_access_token"

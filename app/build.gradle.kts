@@ -61,14 +61,10 @@ dependencies {
     // On-device text recognition (auto-fill name from photo)
     implementation("com.google.mlkit:text-recognition:16.0.0")
 
-    // Barcode scanning (equivalent to AVFoundation metadata scanning on iOS)
-    implementation("com.google.mlkit:barcode-scanning:17.3.0")
-
-    // CameraX (camera preview + frame analysis for the barcode scanner screen)
-    implementation("androidx.camera:camera-core:1.3.4")
-    implementation("androidx.camera:camera-camera2:1.3.4")
-    implementation("androidx.camera:camera-lifecycle:1.3.4")
-    implementation("androidx.camera:camera-view:1.3.4")
+    // Barcode scanning: Google Code Scanner (Play services) — handles camera + detection UI itself,
+    // far more reliable than a hand-rolled CameraX + ML Kit pipeline.
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+    implementation("com.google.mlkit:barcode-scanning:17.3.0") // بۆ کلاسی Barcode.FORMAT_* تەنیا
 
     // Coroutines (used by the Open Food Facts lookup + ML Kit task bridging)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")

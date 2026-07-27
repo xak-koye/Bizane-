@@ -34,6 +34,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -104,6 +105,9 @@ fun AddItemScreen(
     }
     var notes by remember { mutableStateOf(editItem?.notes ?: "") }
     var barcode by remember { mutableStateOf(editItem?.barcode ?: "") }
+    var notifyEnabled by remember { mutableStateOf(editItem?.notifyEnabled ?: false) }
+    var notifyDaysBefore by remember { mutableStateOf(editItem?.notifyDaysBefore ?: 1) }
+    var showNotifyDaysPicker by remember { mutableStateOf(false) }
     var lookingUpBarcode by remember { mutableStateOf(false) }
     var pickedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var pickedBase64 by remember { mutableStateOf(editItem?.imageBase64) }
@@ -217,7 +221,8 @@ fun AddItemScreen(
                                 name = name.trim(), category = category,
                                 purchaseDate = purchaseDate, expiryDate = expiryDate,
                                 notes = notes, imageBase64 = pickedBase64 ?: editItem.imageBase64,
-                                barcode = barcode.trim().ifEmpty { null }
+                                barcode = barcode.trim().ifEmpty { null },
+                                notifyEnabled = notifyEnabled, notifyDaysBefore = notifyDaysBefore
                             )
                             FoodStorage.update(updated); vm.refreshAfterEdit()
                         } else {
@@ -225,7 +230,8 @@ fun AddItemScreen(
                                 name = name.trim(), category = category,
                                 purchaseDate = purchaseDate, expiryDate = expiryDate,
                                 imageBase64 = pickedBase64, notes = notes,
-                                barcode = barcode.trim().ifEmpty { null }
+                                barcode = barcode.trim().ifEmpty { null },
+                                notifyEnabled = notifyEnabled, notifyDaysBefore = notifyDaysBefore
                             )
                             FoodStorage.add(newItem); vm.refreshAfterEdit()
                         }
@@ -350,6 +356,41 @@ fun AddItemScreen(
                 colors = fieldColors()
             )
 
+            Spacer(Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(L("add.notifyLabel"), color = Color.White, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                androidx.compose.material3.Switch(
+                    checked = notifyEnabled,
+                    onCheckedChange = { notifyEnabled = it },
+                    colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = Color(0xFF33D976))
+                )
+            }
+            if (notifyEnabled) {
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(FieldBG)
+                        .clickable { showNotifyDaysPicker = true }
+                        .padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        if (notifyDaysBefore == 0) L("add.daysToday") else L("add.daysBefore", notifyDaysBefore),
+                        color = Color.White, fontSize = 15.sp, modifier = Modifier.weight(1f)
+                    )
+                    Icon(
+                        androidx.compose.material.icons.Icons.Filled.ChevronRight,
+                        contentDescription = null, tint = Color.Gray
+                    )
+                }
+            }
+
             if (editItem != null) {
                 Spacer(Modifier.height(20.dp))
                 Button(
@@ -398,6 +439,14 @@ fun AddItemScreen(
         )
     }
 
+    if (showNotifyDaysPicker) {
+        NotifyDaysPickerDialog(
+            initial = notifyDaysBefore,
+            onDismiss = { showNotifyDaysPicker = false },
+            onPick = { notifyDaysBefore = it; showNotifyDaysPicker = false }
+        )
+    }
+
     if (showBuyPicker) {
         DatePickDialog(initial = purchaseDate, onDismiss = { showBuyPicker = false }) {
             purchaseDate = it; showBuyPicker = false
@@ -408,6 +457,39 @@ fun AddItemScreen(
             expiryDate = it; showExpPicker = false
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NotifyDaysPickerDialog(initial: Int, onDismiss: () -> Unit, onPick: (Int) -> Unit) {
+    var selected by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(L("add.notifyLabel")) },
+        text = {
+            androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.height(260.dp)) {
+                items((0..30).toList()) { d ->
+                    val isSelected = d == selected
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selected = d }
+                            .padding(vertical = 10.dp, horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            if (d == 0) L("add.daysToday") else L("add.daysBefore", d),
+                            color = if (isSelected) Color(0xFF0A84FF) else Color.White,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            fontSize = 15.sp
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onPick(selected) }) { Text(L("common.ok")) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(L("common.cancel")) } }
+    )
 }
 
 @Composable

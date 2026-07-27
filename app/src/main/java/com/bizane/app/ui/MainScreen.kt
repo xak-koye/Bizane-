@@ -73,6 +73,16 @@ fun MainScreen(
 
     Scaffold(
         containerColor = com.bizane.app.ui.theme.PageBG,
+        floatingActionButton = {
+            androidx.compose.material3.FloatingActionButton(
+                onClick = { onOpenItem(null) },
+                containerColor = Color(0xFF0A84FF),
+                contentColor = Color.White,
+                shape = androidx.compose.foundation.shape.CircleShape
+            ) {
+                androidx.compose.material3.Icon(Icons.Filled.Add, contentDescription = null)
+            }
+        },
         snackbarHost = {
             SnackbarHost(snackbarHostState) { data ->
                 Snackbar(
@@ -107,8 +117,6 @@ fun MainScreen(
                 IconCircleButton(imageVector = if (cardToggle) Icons.Filled.ViewList else Icons.Filled.GridView) {
                     cardToggle = vm.toggleCardView()
                 }
-                Spacer(Modifier.width(8.dp))
-                IconCircleButton(imageVector = Icons.Filled.Add) { onOpenItem(null) }
             }
 
             Spacer(Modifier.height(10.dp))
@@ -150,7 +158,7 @@ fun MainScreen(
                     columns = GridCells.Fixed(2),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(bottom = 24.dp)
+                    contentPadding = PaddingValues(bottom = 90.dp)
                 ) {
                     items(items, key = { it.id }) { item ->
                         FoodCard(item, onClick = { onOpenItem(item) })
@@ -159,7 +167,7 @@ fun MainScreen(
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 24.dp)
+                    contentPadding = PaddingValues(bottom = 90.dp)
                 ) {
                     items(items, key = { it.id }) { item ->
                         SwipeableFoodRow(

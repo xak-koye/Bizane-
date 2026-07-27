@@ -75,11 +75,13 @@ object ExpiryNotifications {
         }
     }
 
-    /** پشکنینی خواردنەکان و ناردنی ئاگادارکردنەوە بۆ ئەوانەی لە ماوەی AppSettings.notifDays ـدا بەسەردەچن */
+    /** پشکنینی خواردنەکان و ناردنی ئاگادارکردنەوە بۆ ئەوانەی ئاگادارکردنەوەیان کراوەیە و لە
+     *  ماوەی notifyDaysBefore ـی خۆیاندا بەسەردەچن (هەر ئایتمێک بە ڕێکخستنی خۆی، وەک ئایفۆن) */
     fun checkAndNotify(context: Context) {
         if (!hasPermission(context)) return
-        val notifDays = AppSettings.notifDays
-        val items = FoodStorage.items.filter { !it.isExpired && it.daysLeft <= notifDays }
+        val items = FoodStorage.items.filter {
+            it.notifyEnabled && !it.isExpired && it.daysLeft <= it.notifyDaysBefore
+        }
         if (items.isEmpty()) return
 
         val builder = { item: FoodItem ->
