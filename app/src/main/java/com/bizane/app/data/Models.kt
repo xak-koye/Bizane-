@@ -288,4 +288,30 @@ object AppSettings {
     var sortMode: Int
         get() = sp.getInt("sort_mode", 0)
         set(v) = sp.edit().putInt("sort_mode", v).apply()
+
+    /** کاتی باکئەپی خۆکارانە — هاوشێوەی AutoBackupMode ـی سویفت */
+    var autoBackupMode: AutoBackupMode
+        get() = AutoBackupMode.fromRaw(sp.getInt("auto_backup_mode", AutoBackupMode.MANUAL.raw))
+        set(v) = sp.edit().putInt("auto_backup_mode", v.raw).apply()
+}
+
+/** کاتی باکئەپی خۆکارانە (هاوشێوەی AutoBackupMode ـی iOS) */
+enum class AutoBackupMode(val raw: Int) {
+    ON_OPEN(0),   // هەرکاتێک ئەپ دەکرێتەوە
+    DAILY(1),     // ڕۆژانە
+    WEEKLY(2),    // هەفتانە
+    MANUAL(3);    // تەنیا بە دەست (کلیک)
+
+    val title: String
+        get() = when (this) {
+            ON_OPEN -> L("autobackup.onOpen")
+            DAILY -> L("autobackup.daily")
+            WEEKLY -> L("autobackup.weekly")
+            MANUAL -> L("autobackup.manual")
+        }
+
+    companion object {
+        val entriesList = listOf(ON_OPEN, DAILY, WEEKLY, MANUAL)
+        fun fromRaw(v: Int): AutoBackupMode = entriesList.firstOrNull { it.raw == v } ?: MANUAL
+    }
 }

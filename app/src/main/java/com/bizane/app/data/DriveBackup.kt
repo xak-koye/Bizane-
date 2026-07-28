@@ -110,3 +110,43 @@ object DriveBackup {
         return files.getJSONObject(0).optString("id").ifEmpty { null }
     }
 }
+
+/**
+ * چاودێری باکئەپی خۆکارانە — کاتێک ئەپ دەبێتە چالاک، پشکنین دەکات ئایا بەپێی
+ * هەڵبژاردەی یوزەر (هەر کردنەوەیەک/ڕۆژانە/هەفتانە) کاتی باکئەپی نوێ هاتووە.
+ * بێدەنگانە کاردەکات (بێ هیچ Toast یان لۆدینگ)، تەنیا کاتێک بەکارهێنەر بە Google
+ * پارێزراوە. هاوشێوەی AutoBackupManager ـی iOS، بەڵام لێرە بە suspend fun ـە چونکە
+ * Drive backup لە Android ـدا کۆرۆتینە.
+ */
+object AutoBackupManager {
+    private const val LAST_AUTO_RUN_KEY = "auto_backup_last_run"
+
+    private var lastAutoRunMillis: Long
+        get() = Prefs.sp.getLong(LAST_AUTO_RUN_KEY, 0L)
+        set(value) = Prefs.sp.edit().putLong(LAST_AUTO_RUN_KEY, value).apply()
+
+    /** دەبێت لە کاتی چالاکبوونی ئەپ (foreground، بۆ نموونە MainActivity.onCreate) بانگ بکرێت */
+    suspend fun runIfNeeded() {
+        if (!DriveTokenStore.isLinked) return
+
+        val mode = AppSettings.autoBackupMode
+        if (mode == AutoBackupMode.MANUAL) return
+
+        val now = System.currentTimeMillis()
+        when (mode) {
+            AutoBackupMode.ON_OPEN -> Unit // هەموو جارێک کە ئەپ دەکرێتەوە
+            AutoBackupMode.DAILY -> {
+                val last = lastAutoRunMillis
+                if (last > 0 && now - last < 24L * 3600 * 1000) return
+            }
+            AutoBackupMode.WEEKLY -> {
+                val last = lastAutoRunMillis
+                if (last > 0 && now - last < 7L * 24 * 3600 * 1000) return
+            }
+            AutoBackupMode.MANUAL -> return
+        }
+
+        lastAutoRunMillis = now
+        DriveBackup.backup() // بێدەنگ — سەرکەوتن/شکستی کاریگەری نییە لەسەر ئەزموونی بەکارهێنەر
+    }
+}

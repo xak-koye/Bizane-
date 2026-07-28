@@ -178,7 +178,13 @@ fun AddItemScreen(
     }
 
     fun launchCamera() {
-        val file = File.createTempFile("bizane_", ".jpg", context.cacheDir)
+        // پێویستە فایلەکە لەناو "images/" ی cacheDir دروست بکرێت، چونکە file_paths.xml
+        // تەنیا ڕێگە بەو ژێرپۆشەیە دەدات (<cache-path path="images/" />). پێشتر فایلەکە
+        // ڕاستەوخۆ لە ڕەگی cacheDir دروست دەکرا، کە وا دەکرد FileProvider.getUriForFile
+        // IllegalArgumentException ـی "Failed to find configured root" بدات و ئەپەکە
+        // یەکسەر کراش بکات هەر کاتێک کامێرا بەکاردەهێنرا.
+        val imagesDir = File(context.cacheDir, "images").apply { mkdirs() }
+        val file = File.createTempFile("bizane_", ".jpg", imagesDir)
         val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         cameraImageUri = uri
         cameraLauncher.launch(uri)
@@ -537,9 +543,32 @@ private fun DatePickDialog(initial: Long, onDismiss: () -> Unit, onPick: (Long) 
     }
 }
 
-private fun uriToBitmap(context: Context, uri: Uri): Bitmap? = try {
-    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
-} catch (e: Exception) { null }
+/**
+ * وێنە لە URI دەخوێنێتەوە بۆ Bitmap — بە downsampling، چونکە کامێرای مۆبایلە نوێکان وێنەی
+ * زۆر گەورە دەگرن (١٢-٥٠+ مێگاپیکسڵ) کە ئەگەر ڕاستەوخۆ بە قەبارەی تەواو بخوێنرێتەوە دەبێتە
+ * هۆی OutOfMemoryError و کراشی ئەپەکە. لێرە یەکەم جار تەنیا قەبارەکەی دەزانین (inJustDecodeBounds)،
+ * پاشان بە inSampleSize گونجاو وێنەکە بچووک دەکەینەوە پێش خوێندنەوەی ڕاستەقینە.
+ */
+private fun uriToBitmap(context: Context, uri: Uri, maxDimension: Int = 1600): Bitmap? {
+    return try {
+        val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, boundsOptions) }
+
+        var sampleSize = 1
+        val (w, h) = boundsOptions.outWidth to boundsOptions.outHeight
+        if (w > 0 && h > 0) {
+            while (w / sampleSize > maxDimension || h / sampleSize > maxDimension) sampleSize *= 2
+        }
+
+        val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, decodeOptions) }
+    } catch (e: Exception) {
+        null
+    } catch (e: OutOfMemoryError) {
+        // وێنەکە زۆر گەورەیە تەنانەت لەگەڵ sampling — لەبری کراشکردن، هیچ وێنەیەک نیشان نادەین
+        null
+    }
+}
 
 /** دەقی سەر وێنەکە دەخوێنێتەوە (وەکو Vision OCR ـی iOS) و بەخۆکاری دەیخاتە ناو ناوی خواردن */
 private fun runOcr(bitmap: Bitmap, onResult: (String) -> Unit) {

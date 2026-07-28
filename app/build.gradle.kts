@@ -61,10 +61,21 @@ dependencies {
     // On-device text recognition (auto-fill name from photo)
     implementation("com.google.mlkit:text-recognition:16.0.0")
 
-    // Barcode scanning: Google Code Scanner (Play services) — handles camera + detection UI itself,
-    // far more reliable than a hand-rolled CameraX + ML Kit pipeline.
-    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
-    implementation("com.google.mlkit:barcode-scanning:17.3.0") // بۆ کلاسی Barcode.FORMAT_* تەنیا
+    // Barcode scanning: CameraX preview + on-device ML Kit barcode detection.
+    // پێشتر GmsBarcodeScanning (play-services-code-scanner) بەکاردەهات، بەڵام ئەوە
+    // پشت بە Play Store ی خۆی دادەبەست بۆ داگرتنی مۆدیوولەکەی سکانکردن (Dynamic Feature
+    // Delivery)، کە تەنیا کاردەکات ئەگەر ئەپەکە لە Play Store ـەوە دامەزرابێت. چونکە
+    // ئەم ئەپە وەک APK ـی سەربەخۆ دابەش دەکرێت (بڕوانە build-apk.yml)، ئەو مۆدیوولە
+    // هەرگیز دانادەمەزرێت و startScan() هەتاهەتایە لە چاوەڕوانیدا دەمێنێتەوە (بێ هیچ
+    // success/failure callback ـێک) — ئەمە هۆکاری ئەو کێشەیە بوو کە سکانکردن بێ بڕیار
+    // بە لۆدینگ دەمایەوە. CameraX + ML Kit ـی خوارەوە بە تەواوی لەناو خودی ئەپەکەدا
+    // کاردەکات و پشت بە Play Store نابەستێت.
+    val cameraxVersion = "1.3.4"
+    implementation("androidx.camera:camera-core:$cameraxVersion")
+    implementation("androidx.camera:camera-camera2:$cameraxVersion")
+    implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
+    implementation("androidx.camera:camera-view:$cameraxVersion")
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
 
     // Coroutines (used by the Open Food Facts lookup + ML Kit task bridging)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")

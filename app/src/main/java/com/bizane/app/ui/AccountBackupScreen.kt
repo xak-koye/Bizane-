@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -40,6 +41,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.bizane.app.data.AppSettings
+import com.bizane.app.data.AutoBackupMode
 import com.bizane.app.data.DriveBackup
 import com.bizane.app.data.DriveTokenStore
 import com.bizane.app.data.GoogleAuth
@@ -67,6 +70,8 @@ fun AccountBackupScreen(onClose: () -> Unit) {
     var busy by remember { mutableStateOf<String?>(null) } // "backup" | "restore" | null
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var showSignOutConfirm by remember { mutableStateOf(false) }
+    var autoBackupMode by remember { mutableStateOf(AppSettings.autoBackupMode) }
+    var showAutoBackupPicker by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = PageBG,
@@ -129,6 +134,12 @@ fun AccountBackupScreen(onClose: () -> Unit) {
                 )
 
                 Spacer(Modifier.height(20.dp))
+                BigButton(
+                    L("settings.autoBackupBtn", autoBackupMode.title),
+                    enabled = true, color = CardBG
+                ) { showAutoBackupPicker = true }
+
+                Spacer(Modifier.height(10.dp))
                 BigButton(
                     if (busy == "backup") L("settings.backingUp") else L("settings.backupBtn"),
                     enabled = busy == null, color = Color(0xFF0A84FF)
@@ -198,6 +209,39 @@ fun AccountBackupScreen(onClose: () -> Unit) {
                 }) { Text(L("settings.signOutConfirm"), color = Color(0xFFFF3B30)) }
             },
             dismissButton = { TextButton(onClick = { showSignOutConfirm = false }) { Text(L("common.cancel")) } }
+        )
+    }
+
+    if (showAutoBackupPicker) {
+        AlertDialog(
+            onDismissRequest = { showAutoBackupPicker = false },
+            title = { Text(L("settings.autoBackupQuestion")) },
+            text = {
+                Column {
+                    AutoBackupMode.entriesList.forEach { mode ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    AppSettings.autoBackupMode = mode
+                                    autoBackupMode = mode
+                                    showAutoBackupPicker = false
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                (if (mode == autoBackupMode) "✓  " else "     ") + mode.title,
+                                color = if (mode == autoBackupMode) Color(0xFF0A84FF) else Color.White,
+                                fontWeight = if (mode == autoBackupMode) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 15.sp
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { showAutoBackupPicker = false }) { Text(L("common.cancel")) } }
         )
     }
 }

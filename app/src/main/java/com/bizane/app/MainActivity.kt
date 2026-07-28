@@ -39,6 +39,9 @@ class MainActivity : ComponentActivity() {
                 ) {
                     requestNotifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
+                // هاوشێوەی SceneDelegate.swift: کاتێک ئەپ دەکرێتەوە، پشکنین بکە ئایا
+                // کاتی باکئەپی خۆکارانە هاتووە (بەپێی هەڵبژاردەی یوزەر لە ڕێکخستنەکاندا)
+                com.bizane.app.data.AutoBackupManager.runIfNeeded()
             }
             // ئاراستەی ڕووکار بەپێی زمانی هەڵبژێردراو دەگۆڕدرێت (کوردی = RTL، English = LTR)
             val direction = if (AppLang.current.isRTL) LayoutDirection.Rtl else LayoutDirection.Ltr
