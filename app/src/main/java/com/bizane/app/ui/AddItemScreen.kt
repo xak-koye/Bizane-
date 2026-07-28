@@ -76,6 +76,7 @@ import com.bizane.app.data.FoodItem
 import com.bizane.app.data.FoodStorage
 import com.bizane.app.data.L
 import com.bizane.app.data.OpenFoodFactsLookup
+import com.bizane.app.data.SharedProductDB
 import com.bizane.app.ui.theme.FieldBG
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -117,27 +118,41 @@ fun AddItemScreen(
     var showExpPicker by remember { mutableStateOf(false) }
     var showImageSourceSheet by remember { mutableStateOf(false) }
 
-    // کاتێک لە پەڕەی سکانی بارکۆد دەگەڕێینەوە، ئەم کۆدە دەخوێنێتەوە و لە Open Food Facts دەگەڕێت
+    // کاتێک لە پەڕەی سکانی بارکۆد دەگەڕێینەوە، ئەم کۆدە دەخوێنێتەوە: سەرەتا لە Open Food Facts
+    // دەگەڕێت (داتابەیسێکی گشتی جیهانی)، ئەگەر نەدۆزرایەوە (زۆرجار بەرهەمی ناوخۆیی/کوردستانین)
+    // دواتر لە SharedProductDB دەگەڕێت (داتابەیسی هاوبەشی خودی ئەپەکە، هاوبەش لەگەڵ iOS).
     LaunchedEffect(BarcodeResultHolder.value) {
         val code = BarcodeResultHolder.value ?: return@LaunchedEffect
         BarcodeResultHolder.value = null
         barcode = code
         lookingUpBarcode = true
         val info = OpenFoodFactsLookup.lookup(code)
+        if (info != null) {
+            lookingUpBarcode = false
+            info.name?.let { name = it }
+            info.imageUrl?.let { url ->
+                val bmp = OpenFoodFactsLookup.downloadImage(url)
+                if (bmp != null) {
+                    pickedBitmap = bmp
+                    val baos = ByteArrayOutputStream()
+                    bmp.compress(Bitmap.CompressFormat.JPEG, 75, baos)
+                    pickedBase64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+                }
+            }
+            return@LaunchedEffect
+        }
+        val shared = SharedProductDB.lookup(code)
         lookingUpBarcode = false
-        if (info == null) {
+        if (shared == null || (shared.name == null && shared.image == null)) {
             errorMsg = L("add.barcodeNotFound")
             return@LaunchedEffect
         }
-        info.name?.let { name = it }
-        info.imageUrl?.let { url ->
-            val bmp = OpenFoodFactsLookup.downloadImage(url)
-            if (bmp != null) {
-                pickedBitmap = bmp
-                val baos = ByteArrayOutputStream()
-                bmp.compress(Bitmap.CompressFormat.JPEG, 75, baos)
-                pickedBase64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
-            }
+        shared.name?.let { name = it }
+        shared.image?.let { bmp ->
+            pickedBitmap = bmp
+            val baos = ByteArrayOutputStream()
+            bmp.compress(Bitmap.CompressFormat.JPEG, 75, baos)
+            pickedBase64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
         }
     }
 
@@ -240,6 +255,14 @@ fun AddItemScreen(
                                 notifyEnabled = notifyEnabled, notifyDaysBefore = notifyDaysBefore
                             )
                             FoodStorage.add(newItem); vm.refreshAfterEdit()
+                        }
+                        // ئەگەر بارکۆدێکی هەبوو، ناو و وێنەکە بنێرە بۆ داتابەیسی هاوبەش (لە
+                        // پاشبنەمادا، بێ چاوەڕوانی وەڵام) — تاوەکو بەکارهێنەرانی تر (Android یان
+                        // iOS) کە دواتر هەمان بارکۆد سکان دەکەن پێویستیان بە دووبارە نووسینەوەی
+                        // هەمان زانیاری نەبێت.
+                        val cleanBarcode = barcode.trim().ifEmpty { null }
+                        if (cleanBarcode != null) {
+                            SharedProductDB.submit(cleanBarcode, name.trim(), pickedBitmap)
                         }
                         onClose()
                     }) { Text(L("common.save"), color = Color.White, fontWeight = FontWeight.Bold) }
